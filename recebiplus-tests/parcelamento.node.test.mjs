@@ -230,3 +230,33 @@ test('Falha de rede apresenta aviso junto ao lembrete e tempo limite',()=>{
  assert.match(html,/withConnectionDeadline\(repo\.addCharges/);
  assert.match(html,/Não foi possível confirmar a alteração/);
 });
+
+test('Gravacao parcial interrompida e reenvio recuperam exatamente tres parcelas',async()=>{
+ const rows=[];let attempts=0;
+ const supabase={
+  auth:{getUser:async()=>({data:{user:{id:'conta-isolada'}},error:null})},
+  from:()=>({
+   upsert(entries,options){
+    assert.equal(options.onConflict,'owner_id,group_id,description');
+    assert.equal(options.ignoreDuplicates,true);
+    return {then(resolve){
+     attempts++;
+     const batch=attempts===1?entries.slice(0,1):entries;
+     for(const e of batch)if(!rows.some(x=>x.owner_id===e.owner_id&&x.group_id===e.group_id&&x.description===e.description))rows.push({...e});
+     resolve(attempts===1?{data:null,error:{message:'Failed to fetch'}}:{data:null,error:null});
+    }};
+   },
+   select(){return {eq(field,value){this[field]=value;return this},then(resolve){resolve({data:rows.filter(x=>x.owner_id===this.owner_id&&x.group_id===this.group_id),error:null})}}}
+  })
+ };
+ const repository=createRecebiRepository(supabase);
+ const entries=[1,2,3].map(n=>({client_id:'cliente-ficticio',group_id:'grupo-fixo-reenvio',description:'Homologacao parcela '+n+'/3',cents:10000,due_date:'2026-12-25'}));
+ await assert.rejects(()=>repository.addCharges(entries),/Failed to fetch/);
+ assert.equal(rows.length,1,'Primeira tentativa deixou uma parcela persistida');
+ const saved=await repository.addCharges(entries);
+ assert.equal(saved.length,3);
+ assert.equal(rows.length,3,'Reenvio completou sem duplicar');
+ assert.equal(rows.reduce((total,row)=>total+row.cents,0),30000);
+ await repository.addCharges(entries);
+ assert.equal(rows.length,3,'Reenvio repetido nao duplica');
+});
