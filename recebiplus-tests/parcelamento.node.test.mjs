@@ -207,3 +207,17 @@ test('Reenvio pendente tem validade de 24 horas e nao armazena dados do cliente'
  assert.match(html,/Date\.now\(\)-saved\.createdAt<86400000/);
  assert.match(html,/JSON\.stringify\(\{owner,hash,group,createdAt:Date\.now\(\)\}\)/);
 });
+
+test('Alerta nativo aparece mesmo quando aviso de pagina nao esta visivel',()=>{
+ const source=html.match(/function requireConnection\(\)\{[^\n]+\}/);
+ assert.ok(source);
+ let message='';
+ const msg=()=>{};
+ const check=new Function('navigator','msg','window',source[0]+';return requireConnection')({onLine:false},msg,{alert:value=>{message=value}});
+ assert.equal(check(),false);
+ assert.match(message,/NÃO foi salva/);
+ let onlineAlert=false;
+ const onlineCheck=new Function('navigator','msg','window',source[0]+';return requireConnection')({onLine:true},msg,{alert:()=>{onlineAlert=true}});
+ assert.equal(onlineCheck(),true);
+ assert.equal(onlineAlert,false);
+});
