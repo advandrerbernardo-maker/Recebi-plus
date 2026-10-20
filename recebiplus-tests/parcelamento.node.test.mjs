@@ -106,3 +106,12 @@ test('Diretriz comercial: aplicativo e apenas organizador de lembretes',()=>{
  assert.match(html,/Lembretes cadastrados/);
  assert.doesNotMatch(html,/Marcar pago|Desfazer pagamento/);
 });
+
+test('Lembretes vencidos e do dia sao destacados sem confundir resolvidos',()=>{
+ assert.match(html,/const overdue=charges\.filter\(c=>!c\.paid&&c\.due_date<today\)/);
+ assert.match(html,/const dueToday=charges\.filter\(c=>!c\.paid&&c\.due_date===today\)/);
+ assert.match(html,/Retornos prioritários/);
+});
+test('Renovacao automatica de token nao reinicia tela',()=>{
+ assert.match(html,/\['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','USER_UPDATED','PASSWORD_RECOVERY'\]\.includes\(event\)/);
+});
