@@ -115,3 +115,10 @@ test('Lembretes vencidos e do dia sao destacados sem confundir resolvidos',()=>{
 test('Renovacao automatica de token nao reinicia tela',()=>{
  assert.match(html,/\['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','USER_UPDATED','PASSWORD_RECOVERY'\]\.includes\(event\)/);
 });
+
+test('WhatsApp manual e automatico sao diferenciados sem prometer envio automatico',()=>{
+ assert.match(html,/Preparar WhatsApp \(envio manual\)/);
+ assert.match(html,/Não há tarifa por mensagem da API do WhatsApp/);
+ assert.match(html,/Ainda não disponível; dependerá de integração oficial/);
+ assert.match(html,/não envia mensagens aos clientes sem uma ação sua/);
+});
