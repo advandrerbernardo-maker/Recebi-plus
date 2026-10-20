@@ -71,7 +71,7 @@ test('Erro de sincronizacao nao exibe interface da conta',()=>{
  assert.match(html,/try\{await refresh\(\)\}catch\(e\)\{\$\('app'\)\.hidden=true;throw e\}/);
 });
 test('Troca de conta limpa listas e indicadores anteriores',()=>{
- assert.match(html,/customers=\[\];charges=\[\];\$\('clients'\)\.replaceChildren\(\);\$\('charges'\)\.replaceChildren\(\);\$\('stats'\)\.textContent=''/);
+ assert.match(html,/customers=\[\];charges=\[\];\$\('clients'\)\.replaceChildren\(\);\$\('charges'\)\.replaceChildren\(\);\$\('priority'\)\.replaceChildren\(\);\$\('stats'\)\.textContent=''/);
 });
 
 test('Teste reverso: reenvio de mesma cobranca nao duplica parcelas',async()=>{
