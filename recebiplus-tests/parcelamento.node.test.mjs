@@ -169,9 +169,11 @@ test('WhatsApp manual exige toque e usa link wa.me com mensagem codificada',()=>
  assert.match(html,/window\.open\('https:\/\/wa\.me\/'\+phone\+'\?text='\+encodeURIComponent\(message\)/);
  assert.doesNotMatch(html,/setInterval\([^]*?window\.open\('https:\/\/wa\.me\//);
 });
-test('Aviso de teste e protecao contra uso prematuro continuam presentes',()=>{
- assert.match(html,/Versão de testes/);
- assert.match(html,/Não use dados reais até concluirmos os testes de isolamento e segurança/);
+test('Versao candidata informa limites de uso e nao se apresenta como processadora de pagamentos',()=>{
+ assert.match(html,/Sobre o Recebi\+/);
+ assert.match(html,/não recebe, movimenta ou confirma pagamentos/);
+ assert.match(html,/status “Resolvido” é informado manualmente pelo usuário/);
+ assert.doesNotMatch(html,/Versão de testes/);
 });
 
 test('Reenvio apos reinicio reutiliza identificador por conta e assinatura',()=>{
