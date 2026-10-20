@@ -131,3 +131,12 @@ test('Listagem nao solicita usuario autenticado duas vezes por consulta',()=>{
  assert.doesNotMatch(source,/async clients\(\) \{ await userId\(\); const owner_id=await userId\(\)/);
  assert.doesNotMatch(source,/async charges\(\) \{ await userId\(\); const owner_id=await userId\(\)/);
 });
+
+test('Consultas de lembretes limitadas a conta autenticada',()=>{
+ assert.match(source,/async clients\(\).*?eq\('owner_id',owner_id\)/);
+ assert.match(source,/async charges\(\).*?eq\('owner_id',owner_id\)/);
+});
+test('Atualizacoes de lembretes limitadas a conta e versao',()=>{
+ assert.match(source,/update\(\{paid\}\)\.eq\('owner_id',owner_id\)\.eq\('id',id\)\.eq\('version',version\)/);
+ assert.match(source,/update\(\{due_date\}\)\.eq\('owner_id',owner_id\)\.eq\('id',id\)\.eq\('version',version\)/);
+});
