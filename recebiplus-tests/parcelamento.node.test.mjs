@@ -178,7 +178,7 @@ test('Reenvio apos reinicio reutiliza identificador por conta e assinatura',()=>
  assert.match(html,/const retryKey='recebiplus:pending-reminder:v1'/);
  assert.match(html,/crypto\.subtle\.digest\('SHA-256',bytes\)/);
  assert.match(html,/saved\?\.owner===owner&&saved\?\.hash===hash/);
- assert.match(html,/localStorage\.setItem\(retryKey,JSON\.stringify\(\{owner,hash,group\}\)\)/);
+ assert.match(html,/localStorage\.setItem\(retryKey,JSON\.stringify\(\{owner,hash,group,createdAt:Date\.now\(\)\}\)\)/);
  assert.match(html,/clearRetryGroup\(user\.id,retry\.hash\)/);
 });
 
@@ -194,4 +194,16 @@ test('Falha offline mostra aviso visivel e nao confirma operacao',async()=>{
  assert.match(elements.operationAlertText.textContent,/alteração não foi confirmada/);
  msg('Dados sincronizados com Supabase');
  assert.equal(elements.operationAlert.hidden,true);
+});
+
+test('Sem internet bloqueia alteracao antes de enviar e mostra aviso',()=>{
+ assert.match(html,/function requireConnection\(\)/);
+ assert.match(html,/navigator\.onLine===false/);
+ assert.match(html,/if\(!requireConnection\(\)\)return;await repo\.setPaid/);
+ assert.match(html,/if\(!requireConnection\(\)\)return;await repo\.changeDue/);
+ assert.match(html,/if\(!requireConnection\(\)\)return;const \{data:\{user\}/);
+});
+test('Reenvio pendente tem validade de 24 horas e nao armazena dados do cliente',()=>{
+ assert.match(html,/Date\.now\(\)-saved\.createdAt<86400000/);
+ assert.match(html,/JSON\.stringify\(\{owner,hash,group,createdAt:Date\.now\(\)\}\)/);
 });
