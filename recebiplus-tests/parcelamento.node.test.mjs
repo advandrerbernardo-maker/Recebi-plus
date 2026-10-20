@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
 const source=await fs.readFile(new URL('../recebiplus-supabase/repository.js',import.meta.url),'utf8');
 const {createRecebiRepository}=await import('data:text/javascript,'+encodeURIComponent(source));
-const match=html.match(/const base=Math\.floor\(total\/count\),group_id=crypto\.randomUUID\(\);const entries=datesArr\.map\(\(due_date,i\)=>\(\{client_id,group_id,description:count>1\?description\+' · parcela '\+\(i\+1\)\+'\/'\+count:description,cents:base\+\(i===count-1\?total-base\*count:0\),due_date\}\)\)/);
+const match=html.match(/const base=Math\.floor\(total\/count\),group_id=pendingChargeGroup\|\|crypto\.randomUUID\(\);pendingChargeGroup=group_id;const entries=datesArr\.map\(\(due_date,i\)=>\(\{client_id,group_id,description:count>1\?description\+' · parcela '\+\(i\+1\)\+'\/'\+count:description,cents:base\+\(i===count-1\?total-base\*count:0\),due_date\}\)\)/);
 assert.ok(match,'A formula de parcelamento do aplicativo deve continuar reconhecivel');
 function installments(total,count){
  const base=Math.floor(total/count);
@@ -72,4 +72,29 @@ test('Erro de sincronizacao nao exibe interface da conta',()=>{
 });
 test('Troca de conta limpa listas e indicadores anteriores',()=>{
  assert.match(html,/customers=\[\];charges=\[\];\$\('clients'\)\.replaceChildren\(\);\$\('charges'\)\.replaceChildren\(\);\$\('stats'\)\.textContent=''/);
+});
+
+test('Teste reverso: reenvio de mesma cobranca nao duplica parcelas',async()=>{
+ const rows=[];let insertAttempts=0;
+ const supabase={
+  auth:{getUser:async()=>({data:{user:{id:'owner'}},error:null})},
+  from:()=>({
+   upsert(entries,opts){assert.equal(opts.ignoreDuplicates,true);assert.equal(opts.onConflict,'owner_id,group_id,description');return {then(resolve){insertAttempts++;for(const entry of entries){if(!rows.some(x=>x.owner_id===entry.owner_id&&x.group_id===entry.group_id&&x.description===entry.description))rows.push({...entry})}resolve({data:null,error:null})}}},
+   select(){return {eq(field,value){this[field]=value;return this},then(resolve){resolve({data:rows.filter(x=>x.owner_id===this.owner_id&&x.group_id===this.group_id),error:null})}}}
+  })
+ };
+ const repo=createRecebiRepository(supabase);
+ const entries=[1,2,3].map(n=>({client_id:'c1',group_id:'g1',description:'Teste parcela '+n+'/3',cents:10000,due_date:'2026-11-01'}));
+ await repo.addCharges(entries);
+ await repo.addCharges(entries);
+ assert.equal(insertAttempts,2);
+ assert.equal(rows.length,3);
+ assert.equal(rows.reduce((sum,r)=>sum+r.cents,0),30000);
+ const changed=entries.map(x=>({...x,cents:20000}));
+ await assert.rejects(()=>repo.addCharges(changed),/não confirmada/);
+ assert.equal(rows.length,3);
+});
+test('Identificador de reenvio permanece ate confirmacao',()=>{
+ assert.match(html,/pendingChargeGroup\|\|crypto\.randomUUID\(\)/);
+ assert.match(html,/await repo\.addCharges\(entries\);pendingChargeGroup=null/);
 });
