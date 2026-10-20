@@ -140,3 +140,27 @@ test('Atualizacoes de lembretes limitadas a conta e versao',()=>{
  assert.match(source,/update\(\{paid\}\)\.eq\('owner_id',owner_id\)\.eq\('id',id\)\.eq\('version',version\)/);
  assert.match(source,/update\(\{due_date\}\)\.eq\('owner_id',owner_id\)\.eq\('id',id\)\.eq\('version',version\)/);
 });
+
+test('Sessao ausente bloqueia leitura antes de consultar banco',async()=>{
+ let accessed=false;
+ const api={auth:{getUser:async()=>({data:{user:null},error:null})},from(){accessed=true;throw Error('Consulta indevida')}};
+ const repository=createRecebiRepository(api);
+ await assert.rejects(repository.clients(),/Entre na sua conta/);
+ await assert.rejects(repository.charges(),/Entre na sua conta/);
+ assert.equal(accessed,false);
+});
+test('Falha na gravacao e reenvio com mesmo grupo nao geram duplicatas',async()=>{
+ const rows=[];let calls=0;
+ const api={auth:{getUser:async()=>({data:{user:{id:'conta-a'}},error:null})},from(){
+ return {
+ upsert(entries){return {then(done){calls++;if(calls===1){done({data:null,error:{message:'Falha de rede'}});return}for(const entry of entries){if(!rows.some(x=>x.group_id===entry.group_id&&x.description===entry.description))rows.push(entry)}done({data:null,error:null})}}},
+ select(){const conditions={};return {eq(k,v){conditions[k]=v;return this},then(done){done({data:rows.filter(x=>x.owner_id===conditions.owner_id&&x.group_id===conditions.group_id),error:null})}}}
+ };
+ }};
+ const repository=createRecebiRepository(api);
+ const entry={client_id:'cliente-a',group_id:'grupo-a',description:'Lembrete A',cents:1000,due_date:'2026-11-01'};
+ await assert.rejects(repository.addCharges([entry]),/Falha de rede/);
+ await repository.addCharges([entry]);
+ await repository.addCharges([entry]);
+ assert.equal(rows.length,1);
+});
