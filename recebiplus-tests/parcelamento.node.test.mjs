@@ -174,3 +174,11 @@ test('Aviso de teste e protecao contra uso prematuro continuam presentes',()=>{
  assert.match(html,/Versão de testes/);
  assert.match(html,/Não use dados reais até concluirmos os testes de isolamento e segurança/);
 });
+
+test('Reenvio apos reinicio reutiliza identificador por conta e assinatura',()=>{
+ assert.match(html,/const retryKey='recebiplus:pending-reminder:v1'/);
+ assert.match(html,/crypto\.subtle\.digest\('SHA-256',bytes\)/);
+ assert.match(html,/saved\?\.owner===owner&&saved\?\.hash===hash/);
+ assert.match(html,/localStorage\.setItem\(retryKey,JSON\.stringify\(\{owner,hash,group\}\)\)/);
+ assert.match(html,/clearRetryGroup\(user\.id,retry\.hash\)/);
+});
