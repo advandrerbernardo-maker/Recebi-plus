@@ -164,3 +164,13 @@ test('Falha na gravacao e reenvio com mesmo grupo nao geram duplicatas',async()=
  await repository.addCharges([entry]);
  assert.equal(rows.length,1);
 });
+
+test('WhatsApp manual exige toque e usa link wa.me com mensagem codificada',()=>{
+ assert.match(html,/wa\.addEventListener\('click',/);
+ assert.match(html,/window\.open\('https:\/\/wa\.me\/'\+phone\+'\?text='\+encodeURIComponent\(message\)/);
+ assert.doesNotMatch(html,/setInterval\([^]*?window\.open\('https:\/\/wa\.me\//);
+});
+test('Aviso de teste e protecao contra uso prematuro continuam presentes',()=>{
+ assert.match(html,/Versão de testes/);
+ assert.match(html,/Não use dados reais até concluirmos os testes de isolamento e segurança/);
+});
