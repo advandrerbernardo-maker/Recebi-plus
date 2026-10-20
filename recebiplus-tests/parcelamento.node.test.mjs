@@ -28,7 +28,7 @@ for(const n of [3,6,12]){
   assert.equal(items.filter(x=>!x.paid).reduce((s,c)=>s+c.cents,0),total-first.cents);
   await repo.setPaid('p-0',false,2);
   assert.equal(items[0].paid,false);
-  assert.equal(items.reduce((s,c)=>s.cents+c.cents,0),total);
+  assert.equal(items.reduce((s,c)=>s+c.cents,0),total);
   assert.equal(calls,2);
  });
 }
