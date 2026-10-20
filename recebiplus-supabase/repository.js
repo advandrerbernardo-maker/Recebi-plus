@@ -12,8 +12,8 @@ export function createRecebiRepository(supabase) {
     return data;
   }
   return {
-    async clients() { await userId(); const owner_id=await userId(); return query(supabase.from('recebiplus_clients').select('*').eq('owner_id',owner_id).order('name')); },
-    async charges() { await userId(); const owner_id=await userId(); return query(supabase.from('recebiplus_charges').select('*').eq('owner_id',owner_id).order('due_date')); },
+    async clients() { const owner_id=await userId(); return query(supabase.from('recebiplus_clients').select('*').eq('owner_id',owner_id).order('name')); },
+    async charges() { const owner_id=await userId(); return query(supabase.from('recebiplus_charges').select('*').eq('owner_id',owner_id).order('due_date')); },
     async addClient(name,phone) {
       const owner_id=await userId();
       return query(supabase.from('recebiplus_clients').insert({owner_id,name,phone}).select().single());
