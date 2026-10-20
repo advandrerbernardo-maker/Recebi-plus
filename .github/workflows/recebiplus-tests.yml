@@ -2,21 +2,16 @@ name: Recebi Plus Tests
 on:
   workflow_dispatch:
   push:
-    branches: [experimento-daize-cobrancas]
-    paths: ['recebiplus-prototipo.html', 'recebiplus-nuvem.html', 'recebiplus-supabase/**', 'recebiplus-tests/**', '.github/workflows/recebiplus-tests.yml']
+    branches: [main]
+    paths: ['index.html', 'index.html', 'recebiplus-supabase/**', 'recebiplus-tests/**', '.github/workflows/recebiplus-tests.yml']
   pull_request:
-    paths: ['recebiplus-prototipo.html', 'recebiplus-tests/**']
+    paths: ['index.html', 'recebiplus-tests/**']
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: recebiplus-tests
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - run: node --test recebiplus-tests/parcelamento.node.test.mjs
