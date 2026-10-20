@@ -199,9 +199,9 @@ test('Falha offline mostra aviso visivel e nao confirma operacao',async()=>{
 test('Sem internet bloqueia alteracao antes de enviar e mostra aviso',()=>{
  assert.match(html,/function requireConnection\(\)/);
  assert.match(html,/navigator\.onLine===false/);
- assert.match(html,/if\(!requireConnection\(\)\)return;await repo\.setPaid/);
- assert.match(html,/if\(!requireConnection\(\)\)return;await repo\.changeDue/);
- assert.match(html,/if\(!requireConnection\(\)\)return;const \{data:\{user\}/);
+ assert.match(html,/if\(!requireConnection\(\)\)\{showInlineError\(actions/);
+ assert.match(html,/withConnectionDeadline\(repo\.changeDue/);
+ assert.match(html,/if\(!requireConnection\(\)\)\{msg\('Erro: Sem conexão/);
 });
 test('Reenvio pendente tem validade de 24 horas e nao armazena dados do cliente',()=>{
  assert.match(html,/Date\.now\(\)-saved\.createdAt<86400000/);
@@ -220,4 +220,13 @@ test('Alerta nativo aparece mesmo quando aviso de pagina nao esta visivel',()=>{
  const onlineCheck=new Function('navigator','msg','window',source[0]+';return requireConnection')({onLine:true},msg,{alert:()=>{onlineAlert=true}});
  assert.equal(onlineCheck(),true);
  assert.equal(onlineAlert,false);
+});
+
+test('Falha de rede apresenta aviso junto ao lembrete e tempo limite',()=>{
+ assert.match(html,/function showInlineError\(actions,message\)/);
+ assert.match(html,/note\.setAttribute\('role','alert'\)/);
+ assert.match(html,/function withConnectionDeadline\(promise,ms=12000\)/);
+ assert.match(html,/withConnectionDeadline\(repo\.setPaid/);
+ assert.match(html,/withConnectionDeadline\(repo\.addCharges/);
+ assert.match(html,/Não foi possível confirmar a alteração/);
 });
