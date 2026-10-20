@@ -66,3 +66,10 @@ test('Troca de conta oculta interface antes de consultar sessao',()=>{
 test('Atualizacao de dados interrompe ao detectar troca de sessao',()=>{
  assert.match(html,/loadedClients=await repo\.clients\(\);if\(epoch!==authEpoch\)return;const loadedCharges=await repo\.charges\(\);if\(epoch!==authEpoch\)return/);
 });
+
+test('Erro de sincronizacao nao exibe interface da conta',()=>{
+ assert.match(html,/try\{await refresh\(\)\}catch\(e\)\{\$\('app'\)\.hidden=true;throw e\}/);
+});
+test('Troca de conta limpa listas e indicadores anteriores',()=>{
+ assert.match(html,/customers=\[\];charges=\[\];\$\('clients'\)\.replaceChildren\(\);\$\('charges'\)\.replaceChildren\(\);\$\('stats'\)\.textContent=''/);
+});
