@@ -122,3 +122,12 @@ test('WhatsApp manual e automatico sao diferenciados sem prometer envio automati
  assert.match(html,/Ainda não disponível; dependerá de integração oficial/);
  assert.match(html,/não envia mensagens aos clientes sem uma ação sua/);
 });
+
+test('Falha de atualizacao apos gravar lembrete nao sugere repetir cadastro',()=>{
+ assert.match(html,/Lembrete salvo, mas não foi possível atualizar a lista/);
+ assert.match(html,/antes de cadastrar outro lembrete/);
+});
+test('Listagem nao solicita usuario autenticado duas vezes por consulta',()=>{
+ assert.doesNotMatch(source,/async clients\(\) \{ await userId\(\); const owner_id=await userId\(\)/);
+ assert.doesNotMatch(source,/async charges\(\) \{ await userId\(\); const owner_id=await userId\(\)/);
+});
