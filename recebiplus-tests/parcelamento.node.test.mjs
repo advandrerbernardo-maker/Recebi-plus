@@ -95,7 +95,7 @@ test('Teste reverso: reenvio de mesma cobranca nao duplica parcelas',async()=>{
 });
 test('Identificador de reenvio permanece ate confirmacao',()=>{
  assert.match(html,/const retry=await retryGroup\(user\.id/);
- assert.match(html,/await repo\.addCharges\(entries\);clearRetryGroup\(user\.id,retry\.hash\);pendingChargeGroup=null/);
+ assert.match(html,/await withConnectionDeadline\(repo\.addCharges\(entries\)\);clearRetryGroup\(user\.id,retry\.hash\);pendingChargeGroup=null/);
 });
 
 test('Diretriz comercial: aplicativo e apenas organizador de lembretes',()=>{
