@@ -98,3 +98,11 @@ test('Identificador de reenvio permanece ate confirmacao',()=>{
  assert.match(html,/pendingChargeGroup\|\|crypto\.randomUUID\(\)/);
  assert.match(html,/await repo\.addCharges\(entries\);pendingChargeGroup=null/);
 });
+
+test('Diretriz comercial: aplicativo e apenas organizador de lembretes',()=>{
+ assert.match(html,/não recebe, movimenta ou confirma pagamentos/);
+ assert.match(html,/status “Resolvido” é informado manualmente/);
+ assert.match(html,/Marcar como resolvido/);
+ assert.match(html,/Lembretes cadastrados/);
+ assert.doesNotMatch(html,/Marcar pago|Desfazer pagamento/);
+});
