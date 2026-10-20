@@ -59,3 +59,10 @@ test('Cenario realista: R$ 300 em 3x, pagamento da primeira deixa R$ 200 pendent
  assert.deepEqual(items.map(x=>x.paid),[false,false,false]);
  assert.equal(items.filter(x=>!x.paid).reduce((s,x)=>s+x.cents,0),30000);
 });
+
+test('Troca de conta oculta interface antes de consultar sessao',()=>{
+ assert.match(html,/customers=\[\];charges=\[\];\$\('app'\)\.hidden=true;const \{data:\{user\},error\}=await supabase\.auth\.getUser\(\)/);
+});
+test('Atualizacao de dados interrompe ao detectar troca de sessao',()=>{
+ assert.match(html,/loadedClients=await repo\.clients\(\);if\(epoch!==authEpoch\)return;const loadedCharges=await repo\.charges\(\);if\(epoch!==authEpoch\)return/);
+});
