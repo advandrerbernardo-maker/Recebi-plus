@@ -39,3 +39,23 @@ test('A interface cria campos individuais de vencimento e exige ordem',()=>{
  assert.match(html,/for\(let i=2;i<=Number\(\$\('count'\)\.value\);i\+\+\)/);
  assert.match(html,/d<datesArr\[i-1\]/);
 });
+
+test('Cenario realista: R$ 300 em 3x, pagamento da primeira deixa R$ 200 pendentes',async()=>{
+ const total=30000;
+ const items=installments(total,3);
+ assert.deepEqual(items.map(x=>x.cents),[10000,10000,10000]);
+ const supabase={
+  auth:{getUser:async()=>({data:{user:{id:'usuario-teste'}},error:null})},
+  from:()=>({update(patch){return {eq(field,value){this[field]=value;return this},async select(){const index=Number(this.id.split('-')[1]);const row=items[index];if(row.version!==this.version)return {data:[],error:null};Object.assign(row,patch,{version:row.version+1});return {data:[{...row}],error:null}}}}})
+ };
+ const repo=createRecebiRepository(supabase);
+ const pago=await repo.setPaid('parcela-0',true,1);
+ assert.equal(pago.cents,10000);
+ assert.deepEqual(items.map(x=>x.paid),[true,false,false]);
+ assert.equal(items.filter(x=>x.paid).reduce((s,x)=>s+x.cents,0),10000);
+ assert.equal(items.filter(x=>!x.paid).reduce((s,x)=>s+x.cents,0),20000);
+ const revertido=await repo.setPaid('parcela-0',false,2);
+ assert.equal(revertido.paid,false);
+ assert.deepEqual(items.map(x=>x.paid),[false,false,false]);
+ assert.equal(items.filter(x=>!x.paid).reduce((s,x)=>s+x.cents,0),30000);
+});
