@@ -1,0 +1,19 @@
+name: Teste de parcelamento Recebi+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'recebiplus-supabase/repository.js'
+      - 'recebiplus-tests/parcelamento.node.test.mjs'
+      - '.github/workflows/parcelamento.yml'
+  workflow_dispatch:
+jobs:
+  parcelamento:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test recebiplus-tests/parcelamento.node.test.mjs
