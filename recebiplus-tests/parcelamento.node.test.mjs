@@ -181,3 +181,17 @@ test('Reenvio apos reinicio reutiliza identificador por conta e assinatura',()=>
  assert.match(html,/localStorage\.setItem\(retryKey,JSON\.stringify\(\{owner,hash,group\}\)\)/);
  assert.match(html,/clearRetryGroup\(user\.id,retry\.hash\)/);
 });
+
+test('Falha offline mostra aviso visivel e nao confirma operacao',async()=>{
+ const elements=Object.fromEntries(['status','retryConnection','operationAlertText','operationAlert','closeOperationAlert'].map(id=>[id,{textContent:'',hidden:true,addEventListener(){}}]));
+ const $=id=>elements[id];
+ const msgSource=html.match(/const msg=t=>\{[^\n]+\};\$\('closeOperationAlert'\)\.addEventListener\('click',\(\)=>\{[^\n]+\}\);/);
+ assert.ok(msgSource,'Tratamento de erro e aviso visual devem existir');
+ const msg=new Function('$',msgSource[0]+';return msg')($);
+ msg('Erro: Failed to fetch');
+ assert.equal(elements.operationAlert.hidden,false);
+ assert.equal(elements.retryConnection.hidden,false);
+ assert.match(elements.operationAlertText.textContent,/alteração não foi confirmada/);
+ msg('Dados sincronizados com Supabase');
+ assert.equal(elements.operationAlert.hidden,true);
+});
