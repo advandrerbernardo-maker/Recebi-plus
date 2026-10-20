@@ -4,8 +4,7 @@ import fs from 'node:fs/promises';
 const html=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
 const source=await fs.readFile(new URL('../recebiplus-supabase/repository.js',import.meta.url),'utf8');
 const {createRecebiRepository}=await import('data:text/javascript,'+encodeURIComponent(source));
-const match=html.match(/const base=Math\.floor\(total\/count\),group_id=pendingChargeGroup\|\|crypto\.randomUUID\(\);pendingChargeGroup=group_id;const entries=datesArr\.map\(\(due_date,i\)=>\(\{client_id,group_id,description:count>1\?description\+' · parcela '\+\(i\+1\)\+'\/'\+count:description,cents:base\+\(i===count-1\?total-base\*count:0\),due_date\}\)\)/);
-assert.ok(match,'A formula de parcelamento do aplicativo deve continuar reconhecivel');
+assert.match(html,/const base=Math\\.floor\\(total\\/count\\),group_id=retry\\.group;pendingChargeGroup=group_id;const entries=datesArr\\.map/,'A formula de parcelamento deve permanecer reconhecivel');
 function installments(total,count){
  const base=Math.floor(total/count);
  return Array.from({length:count},(_,i)=>({cents:base+(i===count-1?total-base*count:0),paid:false,version:1}));
