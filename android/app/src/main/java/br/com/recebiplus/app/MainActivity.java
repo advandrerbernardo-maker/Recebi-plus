@@ -1,6 +1,9 @@
 package br.com.recebiplus.app;
 
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.JavascriptInterface;
@@ -54,6 +57,18 @@ public class MainActivity extends Activity {
                 });
             }
         }, "RecebiAndroid");
+        // Registre o canal antes de solicitar permissão: o Android então
+        // reconhece que o aplicativo efetivamente pode emitir notificações.
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationManager notifications = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (notifications != null) {
+                NotificationChannel channel = new NotificationChannel(
+                    ReminderReceiver.CHANNEL, "Vencimentos do Recebi+",
+                    NotificationManager.IMPORTANCE_DEFAULT);
+                channel.setDescription("Lembretes de parcelas 3 dias antes, na véspera e no vencimento.");
+                notifications.createNotificationChannel(channel);
+            }
+        }
         ReminderReceiver.schedule(this);
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
