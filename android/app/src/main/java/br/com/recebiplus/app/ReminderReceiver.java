@@ -25,6 +25,17 @@ public class ReminderReceiver extends BroadcastReceiver {
     static final String REMIND = "br.com.recebiplus.REMIND";
     static final String STOP = "br.com.recebiplus.STOP";
     static final String TEST_KEY = "recebi-test-notification";
+    static final String HOUR = "notification_hour";
+    static final String MINUTE = "notification_minute";
+    static final String THREE = "notify_three_days";
+    static final String EVE = "notify_one_day";
+    static final String TODAY = "notify_due_day";
+    static void saveSettings(Context context, int hour, int minute, boolean three, boolean eve, boolean today) {
+        context.getSharedPreferences(PREF,0).edit()
+            .putInt(HOUR,hour).putInt(MINUTE,minute)
+            .putBoolean(THREE,three).putBoolean(EVE,eve).putBoolean(TODAY,today).apply();
+        schedule(context);
+    }
     @Override public void onReceive(Context context, Intent intent) {
         if (intent != null && STOP.equals(intent.getAction())) {
             String key = intent.getStringExtra("key");
@@ -67,8 +78,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         Calendar when = Calendar.getInstance();
-        when.set(Calendar.HOUR_OF_DAY,9);
-        when.set(Calendar.MINUTE,0);
+        when.set(Calendar.HOUR_OF_DAY,context.getSharedPreferences(PREF,0).getInt(HOUR,9));
+        when.set(Calendar.MINUTE,context.getSharedPreferences(PREF,0).getInt(MINUTE,0));
         when.set(Calendar.SECOND,0);
         when.set(Calendar.MILLISECOND,0);
         if (when.getTimeInMillis() <= System.currentTimeMillis()) when.add(Calendar.DATE,1);
@@ -94,7 +105,10 @@ public class ReminderReceiver extends BroadcastReceiver {
                 String key = id + "|" + date;
                 if (stopped.contains(key)) continue;
                 long days = ChronoUnit.DAYS.between(today,LocalDate.parse(date));
-                if (days != 3 && days != 1 && days != 0) continue;
+                android.content.SharedPreferences settings = context.getSharedPreferences(PREF,0);
+                if (!(days == 3 && settings.getBoolean(THREE,true)) &&
+                    !(days == 1 && settings.getBoolean(EVE,true)) &&
+                    !(days == 0 && settings.getBoolean(TODAY,true))) continue;
                 String body = days == 3 ? "Uma parcela vence em 3 dias." : days == 1 ? "Uma parcela vence amanhã." : "Uma parcela vence hoje.";
                 Intent stop = new Intent(context,ReminderReceiver.class).setAction(STOP).putExtra("key",key).setData(android.net.Uri.parse("recebi://stop/"+id+"/"+date));
                 PendingIntent stopAction = PendingIntent.getBroadcast(context,key.hashCode(),stop,PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
