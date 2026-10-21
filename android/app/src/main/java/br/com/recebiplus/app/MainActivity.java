@@ -1,6 +1,10 @@
 package br.com.recebiplus.app;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.JavascriptInterface;
+import org.json.JSONArray;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -31,6 +35,29 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebChromeClient(new WebChromeClient());
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public void updateDates(String json) {
+                runOnUiThread(() -> {
+                    String current = web.getUrl();
+                    if (current == null || !current.startsWith(HOME) || json == null || json.length() > 250000) return;
+                    try {
+                        JSONArray input = new JSONArray(json);
+                        if (input.length() > 10000) return;
+                        JSONArray valid = new JSONArray();
+                        for (int i=0; i<input.length(); i++) {
+                            String date = input.optString(i);
+                            if (date.matches("\\d{4}-\\d{2}-\\d{2}")) valid.put(date);
+                        }
+                        getSharedPreferences(ReminderReceiver.PREF,0).edit().putString(ReminderReceiver.KEY,valid.toString()).apply();
+                        ReminderReceiver.schedule(MainActivity.this);
+                    } catch (Exception ignored) {}
+                });
+            }
+        }, "RecebiAndroid");
+        ReminderReceiver.schedule(this);
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},101);
+        }
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (!request.isForMainFrame()) return false;
