@@ -39,6 +39,20 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebChromeClient(new WebChromeClient());
         web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public String getReminderNotificationSettings(String id) {
+                if(id==null || !id.matches("[0-9a-fA-F-]{36}"))return "{}";
+                return ReminderReceiver.settingsFor(MainActivity.this,id).toString();
+            }
+            @JavascriptInterface public void saveReminderNotificationSettings(String id,String json) {
+                runOnUiThread(()->{
+                    String url=web.getUrl();
+                    if(url==null||!url.startsWith(HOME)||json==null||json.length()>1000)return;
+                    try {
+                        if(ReminderReceiver.saveReminderSettings(MainActivity.this,id,new org.json.JSONObject(json)))
+                            Toast.makeText(MainActivity.this,"Avisos deste lembrete salvos.",Toast.LENGTH_SHORT).show();
+                    }catch(Exception ignored){}
+                });
+            }
             @JavascriptInterface public String getNotificationSettings() {
                 android.content.SharedPreferences p = getSharedPreferences(ReminderReceiver.PREF,0);
                 org.json.JSONObject obj = new org.json.JSONObject();
