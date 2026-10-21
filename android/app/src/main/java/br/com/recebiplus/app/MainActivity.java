@@ -45,8 +45,8 @@ public class MainActivity extends Activity {
                         if (input.length() > 10000) return;
                         JSONArray valid = new JSONArray();
                         for (int i=0; i<input.length(); i++) {
-                            String date = input.optString(i);
-                            if (date.matches("\\d{4}-\\d{2}-\\d{2}")) valid.put(date);
+                            org.json.JSONObject item = input.optJSONObject(i);
+                            if (item != null && item.optString("id").matches("[0-9a-fA-F-]{36}") && item.optString("date").matches("\\d{4}-\\d{2}-\\d{2}")) valid.put(item);
                         }
                         getSharedPreferences(ReminderReceiver.PREF,0).edit().putString(ReminderReceiver.KEY,valid.toString()).apply();
                         ReminderReceiver.schedule(MainActivity.this);
