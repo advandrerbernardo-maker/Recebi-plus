@@ -26,7 +26,7 @@ const todayLocal=()=>{const d=new Date();return [d.getFullYear(),String(d.getMon
 function syncAndroidReminders(items) {
   try {
     if (window.RecebiAndroid && typeof window.RecebiAndroid.updateDates === 'function') {
-      const dates = items.filter(c => !c.paid && /^\d{4}-\d{2}-\d{2}$/.test(c.due_date)).map(c => c.due_date);
+      const dates = items.filter(c => !c.paid && /^\d{4}-\d{2}-\d{2}$/.test(c.due_date)).map(c => ({id:c.id,date:c.due_date}));
       window.RecebiAndroid.updateDates(JSON.stringify(dates));
     }
   } catch (_) {}
