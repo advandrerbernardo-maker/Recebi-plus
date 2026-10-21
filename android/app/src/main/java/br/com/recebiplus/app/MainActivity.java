@@ -39,6 +39,16 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebChromeClient(new WebChromeClient());
         web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public void testNotification() {
+                runOnUiThread(() -> {
+                    String url = web.getUrl();
+                    if (url == null || !url.startsWith(HOME)) return;
+                    boolean ok = ReminderReceiver.showTest(MainActivity.this);
+                    Toast.makeText(MainActivity.this,
+                        ok ? "Notificação de teste enviada. Veja a barra de notificações." : "Autorize notificações nas configurações do Android.",
+                        Toast.LENGTH_LONG).show();
+                });
+            }
             @JavascriptInterface public void updateDates(String json) {
                 runOnUiThread(() -> {
                     String current = web.getUrl();
