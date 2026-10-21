@@ -24,10 +24,16 @@ public class ReminderReceiver extends BroadcastReceiver {
     static final String CHANNEL = "recebi_vencimentos";
     static final String REMIND = "br.com.recebiplus.REMIND";
     static final String STOP = "br.com.recebiplus.STOP";
+    static final String TEST_KEY = "recebi-test-notification";
     @Override public void onReceive(Context context, Intent intent) {
         if (intent != null && STOP.equals(intent.getAction())) {
             String key = intent.getStringExtra("key");
             if (key != null && key.length() < 200) {
+                if (TEST_KEY.equals(key)) {
+                    NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (nm != null) nm.cancel(TEST_KEY, 1002);
+                    return;
+                }
                 Set<String> stopped = new HashSet<>(context.getSharedPreferences(PREF,0).getStringSet(STOPPED,new HashSet<>()));
                 stopped.add(key);
                 context.getSharedPreferences(PREF,0).edit().putStringSet(STOPPED,stopped).apply();
@@ -39,6 +45,23 @@ public class ReminderReceiver extends BroadcastReceiver {
         }
         if (intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) notifyDue(context);
         schedule(context);
+    }
+    static boolean showTest(Context context) {
+        NotificationManager manager = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null) return false;
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return false;
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel(CHANNEL,"Vencimentos do Recebi+",NotificationManager.IMPORTANCE_DEFAULT));
+        Intent stop = new Intent(context,ReminderReceiver.class).setAction(STOP)
+            .putExtra("key",TEST_KEY).setData(android.net.Uri.parse("recebi://stop/test"));
+        PendingIntent stopAction = PendingIntent.getBroadcast(context,1002,stop,PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent open = PendingIntent.getActivity(context,0,new Intent(context,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder n = Build.VERSION.SDK_INT>=26 ? new Notification.Builder(context,CHANNEL) : new Notification.Builder(context);
+        n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Recebi+ · Teste de notificação")
+            .setContentText("Este é um aviso de teste. Nenhuma cobrança foi alterada.")
+            .setAutoCancel(true).setContentIntent(open)
+            .addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"Parar aviso",stopAction).build());
+        manager.notify(TEST_KEY,1002,n.build());
+        return true;
     }
     static void schedule(Context context) {
         AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
