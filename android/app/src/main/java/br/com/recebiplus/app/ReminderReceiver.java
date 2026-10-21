@@ -1,6 +1,7 @@
 package br.com.recebiplus.app;
 
 import android.app.AlarmManager;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,28 +10,34 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import org.json.JSONArray;
+import org.json.JSONObject;
 import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ReminderReceiver extends BroadcastReceiver {
     static final String PREF = "recebi_reminders_v1";
     static final String KEY = "dates";
+    static final String STOPPED = "stopped_v2";
     static final String CHANNEL = "recebi_vencimentos";
+    static final String REMIND = "br.com.recebiplus.REMIND";
+    static final String STOP = "br.com.recebiplus.STOP";
     @Override public void onReceive(Context context, Intent intent) {
-        if (!Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            try {
-                JSONArray dates = new JSONArray(context.getSharedPreferences(PREF, 0).getString(KEY, "[]"));
-                LocalDate today = LocalDate.now();
-                int todayCount = 0, tomorrowCount = 0;
-                for (int i=0; i<dates.length(); i++) {
-                    String due = dates.optString(i);
-                    if (due.equals(today.toString())) todayCount++;
-                    if (due.equals(today.plusDays(1).toString())) tomorrowCount++;
-                }
-                if (todayCount+tomorrowCount > 0) show(context,todayCount,tomorrowCount);
-            } catch (Exception ignored) {}
+        if (intent != null && STOP.equals(intent.getAction())) {
+            String key = intent.getStringExtra("key");
+            if (key != null && key.length() < 200) {
+                Set<String> stopped = new HashSet<>(context.getSharedPreferences(PREF,0).getStringSet(STOPPED,new HashSet<>()));
+                stopped.add(key);
+                context.getSharedPreferences(PREF,0).edit().putStringSet(STOPPED,stopped).apply();
+                NotificationManager nm = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) nm.cancel(key,key.hashCode());
+            }
+            schedule(context);
+            return;
         }
+        if (intent == null || !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) notifyDue(context);
         schedule(context);
     }
     static void schedule(Context context) {
@@ -42,19 +49,39 @@ public class ReminderReceiver extends BroadcastReceiver {
         when.set(Calendar.SECOND,0);
         when.set(Calendar.MILLISECOND,0);
         if (when.getTimeInMillis() <= System.currentTimeMillis()) when.add(Calendar.DATE,1);
-        Intent intent = new Intent(context,ReminderReceiver.class).setAction("br.com.recebiplus.REMIND");
+        Intent intent = new Intent(context,ReminderReceiver.class).setAction(REMIND);
         PendingIntent pending = PendingIntent.getBroadcast(context,91,intent,PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,when.getTimeInMillis(),pending);
     }
-    static void show(Context context,int today,int tomorrow) {
+    static void notifyDue(Context context) {
         NotificationManager manager = (NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return;
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel(CHANNEL,"Vencimentos do Recebi+",NotificationManager.IMPORTANCE_DEFAULT));
-        String body = (today>0 ? today+" vencimento(s) hoje" : "") + (today>0 && tomorrow>0 ? " · " : "") + (tomorrow>0 ? tomorrow+" vencimento(s) amanhã" : "");
-        PendingIntent open = PendingIntent.getActivity(context,0,new Intent(context,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        android.app.Notification.Builder n = Build.VERSION.SDK_INT>=26 ? new android.app.Notification.Builder(context,CHANNEL) : new android.app.Notification.Builder(context);
-        n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Recebi+ · Vencimentos").setContentText(body).setStyle(new android.app.Notification.BigTextStyle().bigText(body)).setAutoCancel(true).setContentIntent(open);
-        manager.notify(91,n.build());
+        Set<String> stopped = context.getSharedPreferences(PREF,0).getStringSet(STOPPED,new HashSet<>());
+        try {
+            JSONArray items = new JSONArray(context.getSharedPreferences(PREF,0).getString(KEY,"[]"));
+            LocalDate today = LocalDate.now();
+            for (int i=0;i<items.length();i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item == null) continue;
+                String id = item.optString("id");
+                String date = item.optString("date");
+                if (!id.matches("[0-9a-fA-F-]{36}") || !date.matches("\\d{4}-\\d{2}-\\d{2}")) continue;
+                String key = id + "|" + date;
+                if (stopped.contains(key)) continue;
+                long days = ChronoUnit.DAYS.between(today,LocalDate.parse(date));
+                if (days != 3 && days != 1 && days != 0) continue;
+                String body = days == 3 ? "Uma parcela vence em 3 dias." : days == 1 ? "Uma parcela vence amanhã." : "Uma parcela vence hoje.";
+                Intent stop = new Intent(context,ReminderReceiver.class).setAction(STOP).putExtra("key",key).setData(android.net.Uri.parse("recebi://stop/"+id+"/"+date));
+                PendingIntent stopAction = PendingIntent.getBroadcast(context,key.hashCode(),stop,PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                PendingIntent open = PendingIntent.getActivity(context,0,new Intent(context,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                Notification.Builder n = Build.VERSION.SDK_INT>=26 ? new Notification.Builder(context,CHANNEL) : new Notification.Builder(context);
+                n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("Recebi+ · Vencimento")
+                 .setContentText(body).setAutoCancel(true).setContentIntent(open)
+                 .addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"Parar aviso",stopAction).build());
+                manager.notify(key,key.hashCode(),n.build());
+            }
+        } catch (Exception ignored) {}
     }
 }
