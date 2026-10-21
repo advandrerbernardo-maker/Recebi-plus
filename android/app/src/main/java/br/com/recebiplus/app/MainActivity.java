@@ -39,6 +39,32 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebChromeClient(new WebChromeClient());
         web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public String getNotificationSettings() {
+                android.content.SharedPreferences p = getSharedPreferences(ReminderReceiver.PREF,0);
+                org.json.JSONObject obj = new org.json.JSONObject();
+                try {
+                    obj.put("hour",p.getInt(ReminderReceiver.HOUR,9));
+                    obj.put("minute",p.getInt(ReminderReceiver.MINUTE,0));
+                    obj.put("three",p.getBoolean(ReminderReceiver.THREE,true));
+                    obj.put("eve",p.getBoolean(ReminderReceiver.EVE,true));
+                    obj.put("today",p.getBoolean(ReminderReceiver.TODAY,true));
+                } catch (Exception ignored) {}
+                return obj.toString();
+            }
+            @JavascriptInterface public void saveNotificationSettings(String json) {
+                runOnUiThread(() -> {
+                    String url = web.getUrl();
+                    if (url == null || !url.startsWith(HOME) || json == null || json.length() > 1000) return;
+                    try {
+                        org.json.JSONObject obj = new org.json.JSONObject(json);
+                        int hour = obj.getInt("hour"), minute = obj.getInt("minute");
+                        if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return;
+                        ReminderReceiver.saveSettings(MainActivity.this,hour,minute,
+                            obj.getBoolean("three"),obj.getBoolean("eve"),obj.getBoolean("today"));
+                        Toast.makeText(MainActivity.this,"Horário dos avisos salvo no Android.",Toast.LENGTH_SHORT).show();
+                    } catch (Exception ignored) {}
+                });
+            }
             @JavascriptInterface public void testNotification() {
                 runOnUiThread(() -> {
                     String url = web.getUrl();
