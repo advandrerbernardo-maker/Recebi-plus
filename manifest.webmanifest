@@ -1,0 +1,19 @@
+{
+  "name": "Recebi+ — Lembretes de recebimentos",
+  "short_name": "Recebi+",
+  "description": "Organize clientes, parcelas e lembretes de recebimentos.",
+  "id": "/Recebi-plus/",
+  "start_url": "/Recebi-plus/",
+  "scope": "/Recebi-plus/",
+  "display": "standalone",
+  "background_color": "#eff5f6",
+  "theme_color": "#102B3C",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
