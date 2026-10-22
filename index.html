@@ -66,8 +66,8 @@ function editReminderNotifications(id,summary){
  const p=reminderSettings(id);
  const form=document.createElement('form');
  form.style.cssText='margin:12px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px';
- const heading=text('strong','Avisos deste lembrete');form.append(heading);
- const label=text('label','Horário dos avisos');const time=document.createElement('input');time.type='time';time.required=true;time.value=String(p.hour).padStart(2,'0')+':'+String(p.minute).padStart(2,'0');label.append(time);form.append(label);
+ const heading=text('strong','Avisos deste lembrete');heading.style.cssText='display:block;margin-bottom:14px;line-height:1.4';form.append(heading);
+ const label=text('label','Horário dos avisos');label.style.cssText='display:block;margin-top:8px;line-height:1.5';const time=document.createElement('input');time.type='time';time.required=true;time.value=String(p.hour).padStart(2,'0')+':'+String(p.minute).padStart(2,'0');label.append(time);form.append(label);
  const options=[];
  for(const [key,name] of [['three','3 dias antes'],['eve','Na véspera'],['today','No dia do vencimento']]){
   const l=document.createElement('label');l.style.display='block';l.style.margin='8px 0';
@@ -261,7 +261,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-22-audit-fixes-13';
+const RECEBI_BUILD='2026-10-22-notification-spacing-14';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
