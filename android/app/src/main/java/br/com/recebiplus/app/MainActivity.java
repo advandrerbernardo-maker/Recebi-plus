@@ -34,6 +34,7 @@ public class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE); // Busca HTML atualizado, preservando cookies e armazenamento da conta.
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -142,6 +143,15 @@ public class MainActivity extends Activity {
         });
         if (state == null) web.loadUrl(HOME);
         else web.restoreState(state);
+    }
+
+    private long lastForegroundRefresh=0;
+    @Override protected void onResume() {
+        super.onResume();
+        if(web!=null && System.currentTimeMillis()-lastForegroundRefresh>60000) {
+            lastForegroundRefresh=System.currentTimeMillis();
+            web.evaluateJavascript("if(typeof checkAppVersion==='function')checkAppVersion();",null);
+        }
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
