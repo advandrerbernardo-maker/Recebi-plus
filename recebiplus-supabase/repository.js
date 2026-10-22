@@ -44,6 +44,14 @@ export function createRecebiRepository(supabase) {
       if(data.length!==1) throw new Error('Cobrança alterada em outro dispositivo. Atualize os dados antes de tentar novamente.');
       return data[0];
     },
+    async deleteClient(id) {
+      const owner_id=await userId();
+      const related=await query(supabase.from('recebiplus_charges').select('id').eq('owner_id',owner_id).eq('client_id',id).limit(1));
+      if(related.length)throw new Error('Este cliente ainda possui cobranças. Exclua as cobranças antes de excluir o cliente.');
+      const deleted=await query(supabase.from('recebiplus_clients').delete().eq('owner_id',owner_id).eq('id',id).select('id'));
+      if(deleted.length!==1)throw new Error('Não foi possível confirmar a exclusão do cliente.');
+      return deleted[0];
+    },
     async deleteCharge(id,version) {
       const owner_id=await userId();
       const deleted=await query(supabase.from('recebiplus_charges').delete().eq('owner_id',owner_id).eq('id',id).eq('version',version).select('id'));
