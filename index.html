@@ -103,12 +103,21 @@ function confirmRecebi(message,{danger=false,confirmLabel='Confirmar'}={}){
   $('recebiConfirmMessage').textContent=message;
   accept.textContent=confirmLabel;
   accept.classList.toggle('recebi-dialog-danger',danger);
+  // Reabilitar explicitamente os controles, inclusive em WebViews que preservam
+  // o estado disabled durante a atualização da página.
+  accept.disabled=false;cancel.disabled=false;
   let settled=false;
-  const finish=value=>{if(settled)return;settled=true;dialog.removeEventListener('close',onClose);accept.removeEventListener('click',onAccept);cancel.removeEventListener('click',onCancel);if(dialog.open)dialog.close();resolve(value)};
-  const onClose=()=>finish(false),onAccept=()=>finish(true),onCancel=()=>finish(false);
+  const finish=value=>{
+   if(settled)return;settled=true;
+   accept.onclick=null;cancel.onclick=null;
+   dialog.removeEventListener('close',onClose);
+   if(dialog.open)dialog.close();
+   resolve(value);
+  };
+  const onClose=()=>finish(false);
+  accept.onclick=()=>finish(true);
+  cancel.onclick=()=>finish(false);
   dialog.addEventListener('close',onClose);
-  accept.addEventListener('click',onAccept);
-  cancel.addEventListener('click',onCancel);
   try{dialog.showModal();cancel.focus()}catch(_){finish(false)}
  });
 }
@@ -141,7 +150,7 @@ const validDate=d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&!Number.isNaN(new Date(d+'T12:
 function withConnectionDeadline(promise,ms=12000){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Tempo de espera excedido. Não foi possível confirmar a alteração. Reconecte e atualize a lista antes de tentar novamente.')),ms)})]).finally(()=>clearTimeout(timer))}
 function showInlineError(actions,message){let note=actions.parentElement.querySelector('.operation-error');if(!note){note=document.createElement('div');note.className='operation-error';note.setAttribute('role','alert');actions.parentElement.append(note)}note.textContent=message;msg('Erro: '+message)}
 function requireConnection(){if(typeof navigator!=='undefined'&&navigator.onLine===false){const warning='Sem internet. A alteração NÃO foi salva. Reative a conexão e tente novamente.';msg('Erro: '+warning);window.alert(warning);return false}return true}
-async function action(fn){if(busy)return;busy=true;const lockedButtons=[...document.querySelectorAll('button:not(#recebiAccept):not(#recebiCancel)')].filter(b=>!b.disabled);lockedButtons.forEach(b=>b.disabled=true);try{await fn()}catch(e){const error='Erro: '+e.message;if(e.message.includes('alterada em outro dispositivo')){try{await refresh()}catch(refreshError){msg(error+' Não foi possível atualizar: '+refreshError.message);return}}msg(error);if(/Failed to fetch|NetworkError|fetch failed|Load failed|sem conexão|offline/i.test(error))window.alert('Falha de conexão. Não foi possível confirmar a alteração. Verifique sua internet e atualize os lembretes antes de tentar novamente.')}finally{busy=false;lockedButtons.forEach(b=>{if(b.isConnected)b.disabled=false})}}
+async function action(fn){if(busy)return;busy=true;const lockedButtons=[...document.querySelectorAll('#app button:not(#recebiAccept):not(#recebiCancel)')].filter(b=>!b.disabled);lockedButtons.forEach(b=>b.disabled=true);try{await fn()}catch(e){const error='Erro: '+e.message;if(e.message.includes('alterada em outro dispositivo')){try{await refresh()}catch(refreshError){msg(error+' Não foi possível atualizar: '+refreshError.message);return}}msg(error);if(/Failed to fetch|NetworkError|fetch failed|Load failed|sem conexão|offline/i.test(error))window.alert('Falha de conexão. Não foi possível confirmar a alteração. Verifique sua internet e atualize os lembretes antes de tentar novamente.')}finally{busy=false;lockedButtons.forEach(b=>{if(b.isConnected)b.disabled=false})}}
 function showClientDirectory(){
  selectedClientId=null;
  $('clientDirectory').hidden=false;
@@ -183,7 +192,7 @@ $('chargeForm').addEventListener('submit',e=>{e.preventDefault();action(async()=
 supabase.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')recovering=true;if(!['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','USER_UPDATED','PASSWORD_RECOVERY'].includes(event))return;setTimeout(()=>authView().catch(e=>msg(e.message)),0)});
 authView().catch(e=>msg('Não foi possível conectar: '+e.message));
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-22-dialog-fix-4';
+const RECEBI_BUILD='2026-10-22-dialog-fix-5';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
