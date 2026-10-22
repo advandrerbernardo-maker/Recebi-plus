@@ -10,7 +10,7 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 #chargeForm button[type="submit"]{display:inline-flex;align-items:center;justify-content:center;min-height:48px;max-width:100%;white-space:normal;margin-bottom:16px}
 #operationAlert{bottom:calc(12px + var(--recebi-bottom-inset) + var(--recebi-viewport-gap))}
 @supports (height:100svh){body{min-height:100svh}}
-</style></head><body>
+.page-back{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;margin:0 0 14px;padding:10px 15px;border:1px solid #b8d0d8;background:#e6f0f4;color:#102b3c;font-size:14px;font-weight:750;border-radius:10px;max-width:100%;touch-action:manipulation}.page-back:focus-visible{outline:3px solid #2687b2;outline-offset:2px}</style></head><body>
 <header><strong>recebi<b>+</b></strong><div>Organize seus lembretes de recebimentos.</div></header><dialog id="recebiConfirm" class="recebi-dialog" aria-labelledby="recebiConfirmTitle"><div class="recebi-dialog-content"><h2 id="recebiConfirmTitle" class="recebi-dialog-title">Recebi+</h2><p id="recebiConfirmMessage" class="recebi-dialog-message"></p><div class="recebi-dialog-actions"><button type="button" id="recebiCancel" class="recebi-dialog-cancel">Cancelar</button><button type="button" id="recebiAccept">Confirmar</button></div></div></dialog><main>
 <div class="card warning" id="aboutPanel"><details class="about-details"><summary>Sobre o Recebi+ · Informações importantes</summary><p>Este aplicativo organiza lembretes de recebimentos e não recebe, movimenta ou confirma pagamentos. O status “PAGO” é informado manualmente pelo usuário.</p></details></div>
 <div id="status" role="status" aria-live="polite">Conectando…</div><div id="operationAlert" role="alert" hidden><span id="operationAlertText"></span><button id="closeOperationAlert" type="button" aria-label="Fechar aviso">×</button></div><button type="button" id="retryConnection" hidden>Tentar conexão novamente</button>
@@ -162,6 +162,17 @@ function withConnectionDeadline(promise,ms=12000){let timer;return Promise.race(
 function showInlineError(actions,message){let note=actions.parentElement.querySelector('.operation-error');if(!note){note=document.createElement('div');note.className='operation-error';note.setAttribute('role','alert');actions.parentElement.append(note)}note.textContent=message;msg('Erro: '+message)}
 function requireConnection(){if(typeof navigator!=='undefined'&&navigator.onLine===false){const warning='Sem internet. A alteração NÃO foi salva. Reative a conexão e tente novamente.';msg('Erro: '+warning);window.alert(warning);return false}return true}
 async function action(fn){if(busy)return;busy=true;const lockedButtons=[...document.querySelectorAll('#app button:not(#recebiAccept):not(#recebiCancel)')].filter(b=>!b.disabled);lockedButtons.forEach(b=>b.disabled=true);try{await fn()}catch(e){const error='Erro: '+e.message;if(e.message.includes('alterada em outro dispositivo')){try{await refresh()}catch(refreshError){msg(error+' Não foi possível atualizar: '+refreshError.message);return}}msg(error);if(/Failed to fetch|NetworkError|fetch failed|Load failed|sem conexão|offline/i.test(error))window.alert('Falha de conexão. Não foi possível confirmar a alteração. Verifique sua internet e atualize os lembretes antes de tentar novamente.')}finally{busy=false;lockedButtons.forEach(b=>{if(b.isConnected)b.disabled=false})}}
+// Navegação contextual: toda tela secundária permite retornar ao início.
+for(const id of ['newClientSection','newChargeSection','chargesSection','helpSection','prioritySection','androidNotificationSettings']){
+ const section=$(id);
+ if(!section)continue;
+ const existing=id==='chargesSection'?$('backToClients'):null;
+ if(existing){existing.classList.add('page-back');existing.textContent='← Voltar aos clientes';continue}
+ const back=document.createElement('button');
+ back.type='button';back.className='page-back';back.textContent='← Início';
+ back.addEventListener('click',()=>{showClientDirectory();window.scrollTo({top:0,behavior:'smooth'})});
+ section.prepend(back);
+}
 function showClientDirectory(){
  selectedClientId=null;
  $('clientDirectory').hidden=false;
@@ -238,7 +249,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-22-safe-bottom-9';
+const RECEBI_BUILD='2026-10-22-page-navigation-10';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
