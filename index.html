@@ -5,7 +5,7 @@
 <div id="status" role="status" aria-live="polite">Conectando…</div><div id="operationAlert" role="alert" hidden><span id="operationAlertText"></span><button id="closeOperationAlert" type="button" aria-label="Fechar aviso">×</button></div><button type="button" id="retryConnection" hidden>Tentar conexão novamente</button>
 <section class="card" id="auth"><h2>Acessar minha conta</h2><form id="login"><label>E-mail<input id="email" type="email" autocomplete="email" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" id="signup">Criar conta</button><button type="button" id="forgot">Esqueci minha senha</button></form><small>Se a confirmação por e-mail estiver ativada, confirme seu endereço antes de entrar.</small></section>
 <section class="card" id="recovery" hidden><h2>Definir nova senha</h2><form id="recoveryForm"><label>Nova senha (mínimo de 8 caracteres)<input id="newPassword" type="password" minlength="8" autocomplete="new-password" required></label><button type="submit">Salvar nova senha</button></form><small>Use esta tela após abrir o link recebido por e-mail.</small></section><div id="app" hidden>
-<section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="viewModeToggle">↩ Voltar ao visual anterior</button></section>
+<section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="viewModeToggle">↩ Voltar ao visual anterior</button><button type="button" class="view-mode-toggle" id="refreshApp">↻ Verificar atualizações</button></section>
 <section class="card" id="androidNotificationSettings" hidden><h2>🔔 Configurações de notificações</h2><p class="muted">Escolha quando o Android deve avisar sobre vencimentos. Padrão: 9h.</p><form id="notificationSettingsForm"><label>Horário dos avisos<input type="time" id="notificationTime" value="09:00" required></label><label style="display:block;margin:9px 0"><input id="notificationThree" type="checkbox" checked style="width:auto"> 3 dias antes</label><label style="display:block;margin:9px 0"><input id="notificationEve" type="checkbox" checked style="width:auto"> Na véspera</label><label style="display:block;margin:9px 0"><input id="notificationToday" type="checkbox" checked style="width:auto"> No dia do vencimento</label><button type="submit">Salvar horário e avisos</button><p id="notificationSettingsStatus" role="status" class="muted"></p></form><small>O horário é aplicado aos próximos agendamentos no Android. O sistema pode atrasar avisos para economizar bateria.</small></section>
 <section class="card" id="newClientSection" hidden><h2>Novo cliente</h2><form id="clientForm"><label>Nome<input id="name" required maxlength="100"></label><label>WhatsApp com DDD<input id="phone" required inputmode="tel"></label><button type="submit">Cadastrar cliente</button></form></section><section class="card" id="clientDirectory"><h2>Meus clientes</h2><p class="muted" id="directorySubtitle">Selecione um cliente para visualizar suas cobranças e avisos.</p><div class="home-tools"><button type="button" id="showNewClient">+ Novo cliente</button><button type="button" id="showNewCharge">+ Nova cobrança</button></div><div id="clients"></div></section>
 <section class="card" id="newChargeSection" hidden><h2>Novo lembrete de recebimento</h2><form id="chargeForm"><label>Cliente<select id="client" required></select></label><label>Descrição<input id="desc" required maxlength="150"></label><label>Valor total em R$<input id="amount" required type="number" min=".01" step=".01"></label><label>Parcelas<select id="count"></select></label><label>Primeiro vencimento<input id="due" type="date" required></label><div id="dates"></div><button type="submit">Salvar lembrete</button></form></section>
@@ -169,5 +169,34 @@ $('chargeForm').addEventListener('change',()=>{if(!busy)pendingChargeGroup=null}
 $('chargeForm').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const client_id=$('client').value,description=$('desc').value.trim(),count=Number($('count').value),amount=Number($('amount').value),total=Math.round(amount*100),datesArr=[$('due').value];if(!customers.some(c=>c.id===client_id)||!description||description.length>130||!Number.isFinite(amount)||amount<=0||amount>100000000||!Number.isSafeInteger(total)||total<count||total>10000000000||count<1||count>20)throw Error('Cobrança inválida');for(let i=2;i<=count;i++)datesArr.push($('date-'+i).value);if(datesArr.some((d,i)=>!validDate(d)||(i>0&&d<datesArr[i-1])))throw Error('Datas inválidas ou fora de ordem');if(!requireConnection()){msg('Erro: Sem conexão. O lembrete não foi enviado.');return}const {data:{user},error:sessionError}=await supabase.auth.getUser();if(sessionError||!user)throw Error('Sessão expirada. Entre novamente.');const retry=await retryGroup(user.id,[client_id,description,total,count,datesArr]);const base=Math.floor(total/count),group_id=retry.group;pendingChargeGroup=group_id;const entries=datesArr.map((due_date,i)=>({client_id,group_id,description:count>1?description.replace(/[\s,.;:·]+$/g,'')+' · parcela '+(i+1)+'/'+count:description,cents:base+(i===count-1?total-base*count:0),due_date}));await withConnectionDeadline(repo.addCharges(entries));clearRetryGroup(user.id,retry.hash);pendingChargeGroup=null;e.target.reset();dates();try{await refresh()}catch(syncError){msg('Lembrete salvo, mas não foi possível atualizar a lista. Use Tentar conexão novamente antes de cadastrar outro lembrete. '+syncError.message)}})});
 supabase.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')recovering=true;if(!['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','USER_UPDATED','PASSWORD_RECOVERY'].includes(event))return;setTimeout(()=>authView().catch(e=>msg(e.message)),0)});
 authView().catch(e=>msg('Não foi possível conectar: '+e.message));
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+// Atualização leve: consulta apenas o identificador de versão, sem cache.
+const RECEBI_BUILD='2026-10-22-auto-update-1';
+const buildStorageKey='recebiplus:last-build';
+let lastVersionCheck=0;
+async function checkAppVersion(manual=false){
+ if(!manual && (document.hidden||Date.now()-lastVersionCheck<45000))return;
+ lastVersionCheck=Date.now();
+ try{
+  const response=await fetch('./app-version.json?check='+Date.now(),{cache:'no-store'});
+  if(!response.ok)throw Error('Versão indisponível');
+  const data=await response.json();
+  if(!data||typeof data.version!=='string')return;
+  if(data.version!==RECEBI_BUILD){
+   if(busy||document.querySelector('input:focus,textarea:focus,select:focus')||document.querySelector('form:focus-within')){
+    if(manual)msg('Atualização disponível. Conclua a edição e toque em Verificar atualizações novamente.');
+    return;
+   }
+   const stamp=sessionStorage.getItem('recebiplus:reloaded-version');
+   if(stamp===data.version)return;
+   sessionStorage.setItem('recebiplus:reloaded-version',data.version);
+   location.replace(location.pathname+'?v='+encodeURIComponent(data.version));
+  }else if(manual){msg('O Recebi+ já está atualizado.');}
+ }catch(e){if(manual)msg('Não foi possível verificar atualizações. Confira a internet e tente novamente.');}
+}
+$('refreshApp').addEventListener('click',()=>checkAppVersion(true));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAppVersion()});
+window.addEventListener('pageshow',()=>checkAppVersion());
+setInterval(()=>checkAppVersion(),60000);
+setTimeout(()=>checkAppVersion(),3500);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(() => {});
 </script></body></html>
