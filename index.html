@@ -167,7 +167,7 @@ $('chargeForm').addEventListener('submit',e=>{e.preventDefault();action(async()=
 supabase.auth.onAuthStateChange((event)=>{if(event==='PASSWORD_RECOVERY')recovering=true;if(!['INITIAL_SESSION','SIGNED_IN','SIGNED_OUT','USER_UPDATED','PASSWORD_RECOVERY'].includes(event))return;setTimeout(()=>authView().catch(e=>msg(e.message)),0)});
 authView().catch(e=>msg('Não foi possível conectar: '+e.message));
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-22-auto-update-1';
+const RECEBI_BUILD='2026-10-22-status-colors-2';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
