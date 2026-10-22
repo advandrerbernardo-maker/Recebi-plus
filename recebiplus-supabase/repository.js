@@ -44,6 +44,12 @@ export function createRecebiRepository(supabase) {
       if(data.length!==1) throw new Error('Cobrança alterada em outro dispositivo. Atualize os dados antes de tentar novamente.');
       return data[0];
     },
+    async deleteCharge(id,version) {
+      const owner_id=await userId();
+      const deleted=await query(supabase.from('recebiplus_charges').delete().eq('owner_id',owner_id).eq('id',id).eq('version',version).select('id'));
+      if(deleted.length!==1)throw new Error('Exclusão não confirmada. Verifique as permissões ou atualize a lista.');
+      return deleted[0];
+    },
     async audit() { const owner_id=await userId(); return query(supabase.from('recebiplus_audit').select('*').eq('owner_id',owner_id).order('at',{ascending:false}).limit(100)); }
   };
 }
