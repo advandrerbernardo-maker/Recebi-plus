@@ -60,7 +60,9 @@ test('Nenhum navegador pode invocar o processamento administrativo',()=>{
  assert.match(functionSrc,/x-recebiplus-cron/);
  assert.match(functionSrc,/recebiplus_validate_cron_token/);
  assert.match(functionSrc,/if\(!authorized\)return json\(\{error:"unauthorized"\},401\)/);
- assert.match(functionSrc,/if\(!resendKey\)return json\(\{status:"email_service_not_configured"\},503\)/);\n assert.match(functionSrc,/const fromEmail=verifiedSender \|\| "Recebi\+ <onboarding@resend.dev>"/);\n assert.match(functionSrc,/resend_test_account_only/);
+ assert.match(functionSrc,/if\(!resendKey\)return json\(\{status:"email_service_not_configured"\},503\)/);
+ assert.match(functionSrc,/const fromEmail=verifiedSender \|\| "Recebi\+ <onboarding@resend.dev>"/);
+ assert.match(functionSrc,/resend_test_account_only/);
 });
 
 test('Interface configura os avisos para e-mail da conta e informa se o remetente falta',()=>{
