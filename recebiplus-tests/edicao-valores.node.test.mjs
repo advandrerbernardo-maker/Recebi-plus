@@ -101,7 +101,8 @@ test('Editor permite escolher um plano e envia apenas suas parcelas para recálc
  const originalDoc=globalThis.document;
  class Element{
   constructor(){this.value='';this.textContent='';this.disabled=false;this.open=false;this.hidden=false;this.children=[];this.events={};this.classList={toggle(){},add(){}}}
-  addEventListener(type,fn){this.events[type]=fn}
+  addEventListener(type,fn){(this.events[type]||= []).push(fn)}
+  trigger(type,event={}){for(const listener of (this.events[type]||[]))listener(event)}
   append(e){this.children.push(e);if(!this.value)this.value=e.value||''}
   replaceChildren(){this.children=[];this.value=''}
   showModal(){this.open=true}
@@ -130,15 +131,15 @@ test('Editor permite escolher um plano e envia apenas suas parcelas para recálc
    confirmRecebi:async()=>true,requireConnection:()=>true,
    getSelectedClientId:()=>clientId,getCharges:()=>rows
   });
-  $('editClientTotal').events.click();
+  $('editClientTotal').trigger('click');
   assert.equal($('editTotalDialog').open,true);
   assert.equal($('editTotalGroup').children.length,2);
   assert.equal($('editTotalGroup').value,'g1');
   assert.equal($('editTotalMoney').value,'R$ 2.500,00');
   $('editTotalMoney').value='R$ 3.000,00';
-  $('editTotalMoney').events.input();
+  $('editTotalMoney').trigger('input');
   assert.match($('editTotalPreview').textContent,/625\.00/);
-  $('editTotalForm').events.submit({preventDefault(){}});
+  $('editTotalForm').trigger('submit',{preventDefault(){}});
   await lastPromise;
   assert.equal(lastRPC[0],clientId);
   assert.equal(lastRPC[1],'g1');
