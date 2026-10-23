@@ -30,8 +30,8 @@ test('Uma mensagem agregada por proprietário/dia, sem parcelas pagas',()=>{
  ]);
  assert.match(letter.text,/Cliente A/);
  assert.match(letter.text,/Cliente B/);
- assert.match(letter.text,/R\$ 1\.500,00/);
- assert.match(letter.text,/R\$ 449,00/);
+ assert.match(letter.text,/R\$\s*1\.500,00/);
+ assert.match(letter.text,/R\$\s*449,00/);
  assert.match(letter.subject,/2 cobrança\(s\)/);
 });
 
