@@ -276,12 +276,7 @@ test('Novas senhas exigem formato reforcado sem bloquear login existente',()=>{
  assert.match(html,/\$\('recoveryForm'\).*?validNewPassword/);
  assert.doesNotMatch(html,/\$\('login'\)[^\n]*validNewPassword/);
 });
-test('Autodiagnostico nao grava dados no Supabase',()=>{
- const start=html.indexOf('async function runRecebiDiagnostics()');
- const end=html.indexOf("\$('runDiagnostics').addEventListener".replace('\\$','$'),start);
- assert.ok(start>=0 && end>start);
- const diagnostic=html.slice(start,end);
- assert.match(diagnostic,/repo.clients\(\),repo.charges\(\)/);
- assert.match(diagnostic,/app-version\.json/);
- assert.doesNotMatch(diagnostic,/repo\.(addClient|addCharge|addCharges|setPaid|changeDue|deleteCharge|deleteClient)\(/);
+test('Diagnostico tecnico nao aparece para o usuario final',()=>{
+ assert.doesNotMatch(html,/id="runDiagnostics"|id="diagnosticsResults"|id="copyDiagnostics"/);
+ assert.doesNotMatch(html,/runRecebiDiagnostics|Testar aplicativo|Copiar resultado do teste/);
 });
