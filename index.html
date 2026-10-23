@@ -48,7 +48,7 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 <section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="refreshApp">↻ Verificar atualizações</button></section>
 <section class="card" id="browserReminderPanel" hidden role="status" aria-live="polite"><strong>🔔 Avisos de cobranças no tablet</strong><p id="browserReminderText"></p><button type="button" id="dismissBrowserReminders">Entendi</button><small>Alertas na tela só aparecem enquanto o Recebi+ estiver aberto neste dispositivo.</small></section><section class="card" id="emailNotificationPanel" hidden>
 <h2>✉️ Avisos por e-mail</h2>
-<p>Receba um resumo das cobranças <b>PENDENTES</b> <b>2 dias antes</b> e <b>no dia do vencimento</b>, a partir das <b>09:00 (Manaus)</b>.</p>
+<p>Receba <b>um único e-mail às 09:00 (Manaus)</b>, somente <b>2 dias antes</b> ou <b>no dia do vencimento</b> de parcelas <b>PENDENTES</b>. A mensagem mostra o <b>nome do cliente</b> e o <b>valor de cada parcela</b>. Nos outros dias não haverá aviso.</p>
 <p>Destinatário: <strong id="emailNotificationRecipient"></strong></p>
 <label style="display:flex;align-items:flex-start;gap:10px;margin:12px 0">
 <input type="checkbox" id="emailNotificationEnabled" style="width:22px;height:22px;flex:none;margin:1px 0">
@@ -77,8 +77,8 @@ let emailServiceConfigured=false,emailServiceMode='unknown',emailOwnerId=null,em
 function emailStatusMessage(enabled){
  if(!enabled)return 'Avisos por e-mail desativados nesta conta.';
  if(!emailServiceConfigured)return 'Preferência salva. Falta cadastrar a chave Resend no Supabase; os e-mails NÃO estão sendo enviados.';
- if(emailServiceMode==='resend_test_account_only')return 'Modo de teste habilitado. Somente o e-mail cadastrado na conta Resend pode receber. Os avisos serão tentados às 09:00 (Manaus); confira a primeira entrega.';
- return 'Avisos por e-mail ativados. Resumos programados para as 09:00 (Manaus), 2 dias antes e no vencimento. Confira a primeira entrega.';
+ if(emailServiceMode==='resend_test_account_only')return 'Modo de teste ativo para o e-mail titular do Resend. Um único resumo é programado para as 09:00 (Manaus), somente 2 dias antes ou no vencimento de parcelas pendentes.';
+ return 'Avisos por e-mail ativados: um único resumo às 09:00 (Manaus), somente 2 dias antes e no dia do vencimento de parcelas pendentes.';
 }
 async function loadEmailAlertPreferences(user){
  const epoch=++emailPrefEpoch;
@@ -456,7 +456,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-23-resend-test-24';
+const RECEBI_BUILD='2026-10-23-email-0900-once-25';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
