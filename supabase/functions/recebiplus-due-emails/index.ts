@@ -139,6 +139,45 @@ async function runDaily(db,resendKey,fromEmail,day){
  }
  return totals;
 }
+
+// Solicitação de teste autenticada EXCLUSIVAMENTE pela chave cron do Vault.
+// Não altera parcelas nem usa dados dos clientes. Apenas uma conta opt-in é
+// permitida e o Resend aplica idempotência diária (sem testes repetidos).
+async function sendSetupTest(db,resendKey,fromEmail){
+ const prefs=await db.from("recebiplus_email_preferences").select("owner_id")
+  .eq("enabled",true).limit(2);
+ if(prefs.error)throw new Error("preference_lookup_failed");
+ if((prefs.data||[]).length!==1)return json({error:"one_enabled_account_required"},409);
+ const owner=prefs.data[0].owner_id;
+ const {data,error}=await db.auth.admin.getUserById(owner);
+ if(error||!data?.user?.email||!data.user.email_confirmed_at)
+  return json({error:"login_email_not_confirmed"},409);
+ const day=dateAtManaus();
+ const subject="Recebi+ | Teste da conexão de avisos por e-mail";
+ const message="Este é um e-mail de TESTE do Recebi+. Nenhuma cobrança foi criada ou alterada.\n\n"+
+  "Os avisos de parcelas PENDENTES estão programados para dois dias antes e para a data do vencimento.\n"+
+  "Horário do agendamento: a partir de 09:00 (Manaus).\n"+
+  "Se você recebeu esta mensagem, a integração entre Resend e Supabase pode enviar e-mails para sua conta.";
+ const sent=await fetch("https://api.resend.com/emails",{
+  method:"POST",
+  headers:{"Authorization":"Bearer "+resendKey,
+   "Content-Type":"application/json",
+   "Idempotency-Key":"recebiplus-setup-test-"+owner+"-"+day},
+  body:JSON.stringify({from:fromEmail,to:[data.user.email],subject,text:message,
+   html:"<main style='font-family:Arial,sans-serif;max-width:590px'><h2>Recebi+ · Teste de envio</h2>"+
+    "<p>Esta mensagem é um <strong>teste</strong>. Nenhuma cobrança foi criada ou modificada.</p>"+
+    "<p>Os avisos automáticos serão enviados apenas para parcelas pendentes, 2 dias antes e no vencimento.</p>"+
+    "<p>Horário de Manaus: 09:00.</p></main>"})
+ });
+ const payload=await sent.json().catch(()=>({}));
+ if(!sent.ok||!payload.id){
+  console.error("Resend setup test was rejected",sent.status,
+   typeof payload?.name==="string"?payload.name:"unknown");
+  return json({status:"test_rejected",provider_status:sent.status,
+   provider_error:typeof payload?.name==="string"?payload.name:"unknown"},502);
+ }
+ return json({status:"test_submitted",provider_message_id:String(payload.id)});
+}
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
  const resendKey=Deno.env.get("RESEND_API_KEY");
@@ -165,6 +204,8 @@ Deno.serve(async req=>{
  if(!authorized)return json({error:"unauthorized"},401);
  if(!resendKey)return json({status:"email_service_not_configured"},503);
  try{
+  const command=await req.json().catch(()=>({}));
+  if(command?.type==="test_email")return await sendSetupTest(db,resendKey,fromEmail);
   const day=dateAtManaus();
   const summary=await runDaily(db,resendKey,fromEmail,day);
   return json({date:day,...summary},summary.failed?502:200);
