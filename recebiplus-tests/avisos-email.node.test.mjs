@@ -133,3 +133,73 @@ test('Após pagamento, lista vazia não gera email',async()=>{
  assert.equal(result.skipped,1);
  assert.equal(mock.calls.fetch.length,0);
 });
+
+
+const selfTestStart=functionSrc.indexOf('async function sendSetupTest(');
+const selfTestEnd=functionSrc.indexOf('Deno.serve(',selfTestStart);
+assert.ok(selfTestStart>0&&selfTestEnd>selfTestStart,'Teste de envio autenticado deve existir');
+const selfTestCode=functionSrc.slice(selfTestStart,selfTestEnd);
+test('Teste de envio é acionado apenas após autenticação do cron e nunca pelo GET público',()=>{
+ const handler=functionSrc.slice(functionSrc.indexOf('Deno.serve('));
+ const authorization=handler.indexOf('if(!authorized)return json({error:"unauthorized"},401)');
+ const testCall=handler.indexOf('if(command?.type==="test_email")');
+ assert.ok(authorization>=0&&testCall>authorization);
+ assert.match(selfTestCode,/\.eq\("enabled",true\)\.limit\(2\)/);
+ assert.match(selfTestCode,/if\(\(prefs\.data\|\|\[\]\)\.length!==1\)/);
+ assert.match(selfTestCode,/db\.auth\.admin\.getUserById\(owner\)/);
+ assert.doesNotMatch(selfTestCode,/recebiplus_charges|recebiplus_clients/);
+});
+function mockSelfTest({enabledOwners=['owner'],emailConfirmed=true,providerCode=200}={}){
+ const events={callCount:0,to:null,body:null,headers:null};
+ const db={
+  from:name=>{assert.equal(name,'recebiplus_email_preferences');return {
+   select(){return this},eq(){return this},async limit(){return {data:enabledOwners.map(owner_id=>({owner_id})),error:null}}
+  }},
+  auth:{admin:{getUserById:async(id)=>{
+   assert.equal(id,'owner');
+   return {data:{user:{email:'conta@example.com',email_confirmed_at:emailConfirmed?'2026-10-23':null}},error:null};
+  }}}
+ };
+ const fakeFetch=async(url,options)=>{
+  assert.equal(url,'https://api.resend.com/emails');
+  events.callCount++;
+  events.to=JSON.parse(options.body).to;
+  events.body=JSON.parse(options.body);
+  events.headers=options.headers;
+  return {ok:providerCode===200,status:providerCode,
+   json:async()=>providerCode===200?{id:'provider-id'}:{name:'validation_error'}};
+ };
+ const json=(body,status=200)=>({http_status:status,...body});
+ const run=new Function('fetch','json','dateAtManaus',selfTestCode+';return sendSetupTest;')(
+  fakeFetch,json,()=> '2026-10-23'
+ );
+ return {result:()=>run(db,'KEY_PLACEHOLDER','Recebi+ <onboarding@resend.dev>'),events};
+}
+test('Envio de teste chega somente ao e-mail autenticado, com uma chave idempotente',async()=>{
+ const e=mockSelfTest();const response=await e.result();
+ assert.equal(response.status,'test_submitted');
+ assert.equal(e.events.callCount,1);
+ assert.deepEqual(e.events.to,['conta@example.com']);
+ assert.equal(e.events.body.from,'Recebi+ <onboarding@resend.dev>');
+ assert.match(e.events.body.subject,/Teste/);
+ assert.match(e.events.body.text,/Nenhuma cobrança foi criada ou alterada/);
+ assert.equal(e.events.headers['Idempotency-Key'],'recebiplus-setup-test-owner-2026-10-23');
+ assert.doesNotMatch(JSON.stringify(e.events.body),/api_key|KEY_PLACEHOLDER/);
+});
+test('Teste rejeita ausência de conta opt-in ou multiplicidade de contas',async()=>{
+ for(const owners of [[],['owner','outra']]){
+  const e=mockSelfTest({enabledOwners:owners});
+  const response=await e.result();
+  assert.equal(response.http_status,409);
+  assert.equal(e.events.callCount,0);
+ }
+});
+test('Teste rejeita e-mail não confirmado e informa rejeição do provedor',async()=>{
+ const unconfirmed=mockSelfTest({emailConfirmed:false});
+ assert.equal((await unconfirmed.result()).error,'login_email_not_confirmed');
+ assert.equal(unconfirmed.events.callCount,0);
+ const provider=mockSelfTest({providerCode:403});
+ const response=await provider.result();
+ assert.equal(response.status,'test_rejected');
+ assert.equal(response.provider_status,403);
+});
