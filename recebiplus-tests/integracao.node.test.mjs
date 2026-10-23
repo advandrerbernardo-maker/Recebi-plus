@@ -133,6 +133,6 @@ test('Avisos reforçam que o recebimento é manual e o recibo só é emitido no 
  assert.match(original,/Confirma que o pagamento desta parcela foi efetivamente recebido/);
  assert.match(original,/O Recebi\+ não verifica movimentações bancárias/);
  assert.match(original,/Se já emitiu um recibo no Daiz-e, ele não será cancelado automaticamente/);
- assert.match(original,/const RECEBI_BUILD='2026-10-23-tablet-reminders-21'/);
+ assert.match(original,/const RECEBI_BUILD='2026-10-23-email-alerts-22'/);
  assert.doesNotMatch(appModule,/DAIZE_TEST_TARGET|prepareDaizeTestReceipt/);
 });
