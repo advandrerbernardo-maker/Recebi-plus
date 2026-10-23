@@ -36,34 +36,41 @@ function reais(cents){
 function humanDate(day){return day.slice(8,10)+"/"+day.slice(5,7)+"/"+day.slice(0,4)}
 function buildMail(day,rows){
  const today=rows.filter(x=>x.due_date===day);
- const inTwo=rows.filter(x=>x.due_date===addCalendarDays(day,2));
- const itemText=x=>"- "+x.client_name+" | "+reais(x.cents)+" | "+x.description+" | vencimento "+humanDate(x.due_date);
- const lines=["Recebi+ - Avisos de recebimentos","",
-   "Cobranças PENDENTES com vencimento hoje ("+humanDate(day)+"):"]
-  .concat(today.length?today.map(itemText):["Nenhuma"])
-  .concat(["","Cobranças PENDENTES que vencem daqui a 2 dias ("+humanDate(addCalendarDays(day,2))+"):" ])
-  .concat(inTwo.length?inTwo.map(itemText):["Nenhuma"])
-  .concat(["","Confira os valores e recebimentos no Recebi+.",
-    "As informações refletem os registros manuais do aplicativo e não confirmam pagamentos bancários.",
-    "Para desativar, acesse Avisos por e-mail nas configurações da sua conta."]);
- const renderRows=data=>data.length?data.map(x=>
-  "<tr><td>"+escapeHTML(x.client_name)+"</td><td>"+escapeHTML(x.description)+"</td><td>"+reais(x.cents)+"</td><td>"+humanDate(x.due_date)+"</td></tr>"
- ).join(""):"<tr><td colspan='4'>Nenhuma parcela pendente</td></tr>";
- const table=(label,rows)=>"<h2 style='font-size:16px;color:#102b3c'>"+escapeHTML(label)+"</h2>"+
-  "<table style='width:100%;border-collapse:collapse'><thead><tr>"+
-  "<th style='text-align:left'>Cliente</th><th style='text-align:left'>Descrição</th>"+
-  "<th style='text-align:left'>Valor</th><th style='text-align:left'>Vencimento</th></tr></thead><tbody>"+
-  renderRows(rows)+"</tbody></table>";
- const html="<div style='font-family:Arial,sans-serif;color:#163346;max-width:680px'>"+
+ const afterTwo=addCalendarDays(day,2);
+ const inTwo=rows.filter(x=>x.due_date===afterTwo);
+ const groups=[
+  {title:"Vencem HOJE · "+humanDate(day),rows:today},
+  {title:"Vencem em 2 dias · "+humanDate(afterTwo),rows:inTwo}
+ ].filter(g=>g.rows.length>0);
+ const textLines=[
+  "Recebi+ · Aviso de parcelas pendentes","",
+  ...groups.flatMap(g=>[
+   g.title,
+   ...g.rows.map(x=>"- "+x.client_name+" — "+reais(x.cents)),
+   ""
+  ]),
+  "Estes avisos são enviados somente 2 dias antes ou no dia do vencimento.",
+  "Os pagamentos são registrados manualmente no Recebi+, sem consulta bancária.",
+  "Você pode desativar estes avisos nas configurações da sua conta."
+ ];
+ const htmlGroups=groups.map(g=>"<h2 style='font-size:17px;margin:20px 0 8px;color:#102b3c'>"+
+  escapeHTML(g.title)+"</h2>"+
+  "<table style='width:100%;border-collapse:collapse'>"+
+  "<thead><tr><th style='text-align:left;padding:8px;border-bottom:1px solid #cad5dc'>Nome do cliente</th>"+
+  "<th style='text-align:right;padding:8px;border-bottom:1px solid #cad5dc'>Valor da parcela</th></tr></thead>"+
+  "<tbody>"+g.rows.map(x=>"<tr><td style='padding:10px 8px;border-bottom:1px solid #edf0f3'>"+
+   escapeHTML(x.client_name)+"</td><td style='padding:10px 8px;border-bottom:1px solid #edf0f3;text-align:right;font-weight:700'>"+
+   reais(x.cents)+"</td></tr>").join("")+"</tbody></table>"
+ ).join("");
+ const html="<div style='font-family:Arial,sans-serif;color:#163346;max-width:650px'>"+
   "<h1 style='background:#102b3c;color:#fff;padding:18px;border-radius:12px'>recebi<span style='color:#55e4b0'>+</span></h1>"+
-  "<p>Resumo automático das suas cobranças ainda <strong>PENDENTES</strong>.</p>"+
-  table("Vencem hoje · "+humanDate(day),today)+
-  table("Vencem em 2 dias · "+humanDate(addCalendarDays(day,2)),inTwo)+
-  "<p>Confira se o pagamento foi recebido antes de alterar o status no aplicativo.</p>"+
-  "<p style='color:#617481;font-size:12px'>O Recebi+ registra pagamentos manualmente, não consulta movimentações bancárias. "+
-  "Para desativar estes avisos, acesse as configurações da sua conta no aplicativo.</p></div>";
- return {subject:"Recebi+ · "+rows.length+" cobrança(s) próximas do vencimento · "+humanDate(day),
-  text:lines.join("\n"),html};
+  "<p>Estas são suas parcelas <strong>PENDENTES</strong> com vencimento hoje ou daqui a 2 dias.</p>"+
+  htmlGroups+
+  "<p style='margin-top:24px'>Envio diário às <strong>9h de Manaus</strong>, somente nos dias elegíveis.</p>"+
+  "<p style='color:#617481;font-size:12px'>Confira os recebimentos antes de marcar uma parcela como paga. "+
+  "O Recebi+ não verifica movimentações bancárias. Desative os avisos nas configurações da conta.</p></div>";
+ return {subject:"Recebi+ · "+rows.length+" parcela(s) próximas do vencimento · "+humanDate(day),
+  text:textLines.join("\n"),html};
 }
 async function loadDueRows(db,ownerId,day){
  const plusTwo=addCalendarDays(day,2),all=[];
@@ -140,44 +147,6 @@ async function runDaily(db,resendKey,fromEmail,day){
  return totals;
 }
 
-// Solicitação de teste autenticada EXCLUSIVAMENTE pela chave cron do Vault.
-// Não altera parcelas nem usa dados dos clientes. Apenas uma conta opt-in é
-// permitida e o Resend aplica idempotência diária (sem testes repetidos).
-async function sendSetupTest(db,resendKey,fromEmail){
- const prefs=await db.from("recebiplus_email_preferences").select("owner_id")
-  .eq("enabled",true).limit(2);
- if(prefs.error)throw new Error("preference_lookup_failed");
- if((prefs.data||[]).length!==1)return json({error:"one_enabled_account_required"},409);
- const owner=prefs.data[0].owner_id;
- const {data,error}=await db.auth.admin.getUserById(owner);
- if(error||!data?.user?.email||!data.user.email_confirmed_at)
-  return json({error:"login_email_not_confirmed"},409);
- const day=dateAtManaus();
- const subject="Recebi+ | Teste da conexão de avisos por e-mail";
- const message="Este é um e-mail de TESTE do Recebi+. Nenhuma cobrança foi criada ou alterada.\n\n"+
-  "Os avisos de parcelas PENDENTES estão programados para dois dias antes e para a data do vencimento.\n"+
-  "Horário do agendamento: a partir de 09:00 (Manaus).\n"+
-  "Se você recebeu esta mensagem, a integração entre Resend e Supabase pode enviar e-mails para sua conta.";
- const sent=await fetch("https://api.resend.com/emails",{
-  method:"POST",
-  headers:{"Authorization":"Bearer "+resendKey,
-   "Content-Type":"application/json",
-   "Idempotency-Key":"recebiplus-setup-test-"+owner+"-"+day},
-  body:JSON.stringify({from:fromEmail,to:[data.user.email],subject,text:message,
-   html:"<main style='font-family:Arial,sans-serif;max-width:590px'><h2>Recebi+ · Teste de envio</h2>"+
-    "<p>Esta mensagem é um <strong>teste</strong>. Nenhuma cobrança foi criada ou modificada.</p>"+
-    "<p>Os avisos automáticos serão enviados apenas para parcelas pendentes, 2 dias antes e no vencimento.</p>"+
-    "<p>Horário de Manaus: 09:00.</p></main>"})
- });
- const payload=await sent.json().catch(()=>({}));
- if(!sent.ok||!payload.id){
-  console.error("Resend setup test was rejected",sent.status,
-   typeof payload?.name==="string"?payload.name:"unknown");
-  return json({status:"test_rejected",provider_status:sent.status,
-   provider_error:typeof payload?.name==="string"?payload.name:"unknown"},502);
- }
- return json({status:"test_submitted",provider_message_id:String(payload.id)});
-}
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
  const resendKey=Deno.env.get("RESEND_API_KEY");
@@ -204,8 +173,6 @@ Deno.serve(async req=>{
  if(!authorized)return json({error:"unauthorized"},401);
  if(!resendKey)return json({status:"email_service_not_configured"},503);
  try{
-  const command=await req.json().catch(()=>({}));
-  if(command?.type==="test_email")return await sendSetupTest(db,resendKey,fromEmail);
   const day=dateAtManaus();
   const summary=await runDaily(db,resendKey,fromEmail,day);
   return json({date:day,...summary},summary.failed?502:200);
