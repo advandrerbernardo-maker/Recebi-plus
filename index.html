@@ -21,7 +21,7 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 <div id="status" role="status" aria-live="polite">Conectando…</div><div id="operationAlert" role="alert" hidden><span id="operationAlertText"></span><button id="closeOperationAlert" type="button" aria-label="Fechar aviso">×</button></div><button type="button" id="retryConnection" hidden>Tentar conexão novamente</button>
 <section class="card" id="auth"><h2>Acessar minha conta</h2><form id="login"><label>E-mail<input id="email" type="email" autocomplete="email" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" id="signup">Criar conta</button><button type="button" id="forgot">Esqueci minha senha</button></form><small>Se a confirmação por e-mail estiver ativada, confirme seu endereço antes de entrar. Para criar uma conta, use senha com pelo menos 12 caracteres, incluindo letras, números e símbolos.</small></section>
 <section class="card" id="recovery" hidden><h2>Definir nova senha</h2><form id="recoveryForm"><label>Nova senha (mínimo de 12 caracteres, com letras, números e símbolo)<input id="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><button type="submit">Salvar nova senha</button></form><small>Use esta tela após abrir o link recebido por e-mail.</small></section><div id="app" hidden>
-<section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="refreshApp">↻ Verificar atualizações</button><button type="button" class="view-mode-toggle" id="runDiagnostics">✓ Testar aplicativo</button><pre id="diagnosticsResults" role="status" aria-live="polite" hidden style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eef8f5;border:1px solid #a8d9c7;padding:12px;border-radius:9px;font:13px/1.6 system-ui,Arial;max-width:100%"></pre><button type="button" id="copyDiagnostics" hidden>Copiar resultado do teste</button></section>
+<section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="refreshApp">↻ Verificar atualizações</button></section>
 <section class="card" id="androidNotificationSettings" hidden><h2>🔔 Configurações de notificações</h2><p class="muted">Escolha quando o Android deve avisar sobre vencimentos. Padrão: 9h.</p><form id="notificationSettingsForm"><label>Horário dos avisos<input type="time" id="notificationTime" value="09:00" required></label><label style="display:block;margin:9px 0"><input id="notificationThree" type="checkbox" checked style="width:auto"> 3 dias antes</label><label style="display:block;margin:9px 0"><input id="notificationEve" type="checkbox" checked style="width:auto"> Na véspera</label><label style="display:block;margin:9px 0"><input id="notificationToday" type="checkbox" checked style="width:auto"> No dia do vencimento</label><button type="submit">Salvar horário e avisos</button><p id="notificationSettingsStatus" role="status" class="muted"></p></form><small>O horário é aplicado aos próximos agendamentos no Android. O sistema pode atrasar avisos para economizar bateria.</small></section>
 <section class="card" id="newClientSection" hidden><h2>Novo cliente</h2><form id="clientForm"><label>Nome<input id="name" required maxlength="100"></label><label>WhatsApp com DDD<input id="phone" required inputmode="tel" autocomplete="tel" placeholder="Ex.: 92999998888" aria-describedby="phoneHelp"></label><small id="phoneHelp">Digite o DDD e o número completo. Exemplo: 92999998888.</small><small id="phoneFeedback" role="status" aria-live="polite"></small><button type="submit">Cadastrar cliente</button></form></section><section class="card" id="clientDirectory"><h2>Meus clientes</h2><p class="muted" id="directorySubtitle">Selecione um cliente para visualizar suas cobranças e avisos.</p><div class="home-tools"><button type="button" id="showNewClient">+ Novo cliente</button><button type="button" id="showNewCharge">+ Nova cobrança</button></div><div id="clients"></div></section>
 <section class="card" id="newChargeSection" hidden><h2>Novo lembrete de recebimento</h2><form id="chargeForm"><label>Cliente<select id="client" required></select></label><label>Descrição<input id="desc" required maxlength="150"></label><label>Valor total em R$<input id="amount" required type="number" min=".01" step=".01"></label><label>Parcelas<select id="count"></select></label><label>Primeiro vencimento<input id="due" type="date" required></label><div id="dates"></div><button type="submit">Salvar lembrete</button></form></section>
@@ -268,7 +268,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-23-diagnostics-security-17';
+const RECEBI_BUILD='2026-10-23-security-ci-18';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
@@ -292,52 +292,6 @@ async function checkAppVersion(manual=false){
  }catch(e){if(manual)msg('Não foi possível verificar atualizações. Confira a internet e tente novamente.');}
 }
 $('refreshApp').addEventListener('click',()=>checkAppVersion(true));
-// Diagnóstico manual e somente leitura: nenhuma gravação de cliente/cobrança.
-async function runRecebiDiagnostics(){
- const btn=$('runDiagnostics'),box=$('diagnosticsResults'),copy=$('copyDiagnostics');
- const epoch=authEpoch;
- btn.disabled=true;box.hidden=false;copy.hidden=true;
- const results=[];
- const record=(ok,title,detail='')=>results.push((ok?'✓ ':'✗ ')+title+(detail?' · '+detail:''));
- const info=(title,detail='')=>results.push('ℹ '+title+(detail?' · '+detail:''));
- const render=()=>{
-   if(epoch!==authEpoch)return;
-   const failures=results.filter(row=>row.startsWith('✗')).length;
-   box.textContent='Recebi+ | Diagnóstico do aparelho\n'+new Date().toLocaleString('pt-BR')+'\nVersão instalada: '+RECEBI_BUILD+'\n\n'+results.join('\n')+'\n\n'+(failures?'Atenção: '+failures+' verificação(ões) não passaram.':'Verificações automáticas concluídas.')+'\nO teste de interrupção de internet durante uma gravação precisa ser feito manualmente neste aparelho.';
-   copy.hidden=false;
- };
- box.textContent='Executando verificações sem alterar seus dados…';
- try{
-   info('Internet informada pelo dispositivo',navigator.onLine===false?'desconectada':'conectada ou não identificada');
-   try{
-     const response=await withConnectionDeadline(fetch('./app-version.json?diag='+Date.now(),{cache:'no-store'}),12000);
-     if(!response.ok)throw Error('Servidor respondeu HTTP '+response.status);
-     const remote=await withConnectionDeadline(response.json(),12000);
-     record(remote.version===RECEBI_BUILD,'Versão publicada',remote.version===RECEBI_BUILD?'código local e servidor coincidem':'servidor: '+String(remote.version||'indefinido'));
-   }catch(e){record(false,'Versão publicada',e.message)}
-   if('serviceWorker' in navigator){
-     try{const registration=await withConnectionDeadline(navigator.serviceWorker.getRegistration(),8000);record(!!registration,'Service Worker',registration?'registrado':'não registrado neste navegador');}
-     catch(e){record(false,'Service Worker',e.message)}
-   }else{info('Service Worker','não oferecido por este navegador');}
-   const installed=Boolean(window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone);
-   info('Modo de abertura',installed?'aplicativo instalado':'aba do navegador');
-   try{
-     const {data,error}=await withConnectionDeadline(supabase.auth.getUser(),12000);
-     if(error||!data?.user)throw Error('Sessão não autenticada');
-     record(true,'Autenticação','conta reconhecida');
-     const [clientRows,chargeRows]=await withConnectionDeadline(Promise.all([repo.clients(),repo.charges()]),12000);
-     record(Array.isArray(clientRows)&&Array.isArray(chargeRows),'Leitura do Supabase','clientes e lembretes acessíveis; nenhum dado alterado');
-   }catch(e){record(false,'Autenticação ou leitura do banco',e.message)}
- }catch(e){record(false,'Diagnóstico interrompido',e.message)}
- finally{render();btn.disabled=false}
-}
-$('runDiagnostics').addEventListener('click',runRecebiDiagnostics);
-$('copyDiagnostics').addEventListener('click',async()=>{
- const result=$('diagnosticsResults').textContent;
- try{await navigator.clipboard.writeText(result);msg('Resultado do diagnóstico copiado.');}
- catch(_){window.prompt('Copie o resultado abaixo:',result)}
-});
-
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAppVersion()});
 window.addEventListener('pageshow',()=>checkAppVersion());
 setInterval(()=>checkAppVersion(),60000);
