@@ -22,7 +22,7 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 <section class="card" id="auth"><h2>Acessar minha conta</h2><form id="login"><label>E-mail<input id="email" type="email" autocomplete="email" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" id="signup">Criar conta</button><button type="button" id="forgot">Esqueci minha senha</button></form><small>Se a confirmação por e-mail estiver ativada, confirme seu endereço antes de entrar. Para criar uma conta, use senha com pelo menos 12 caracteres, incluindo letras, números e símbolos.</small></section>
 <section class="card" id="recovery" hidden><h2>Definir nova senha</h2><form id="recoveryForm"><label>Nova senha (mínimo de 12 caracteres, com letras, números e símbolo)<input id="newPassword" type="password" minlength="12" autocomplete="new-password" required></label><button type="submit">Salvar nova senha</button></form><small>Use esta tela após abrir o link recebido por e-mail.</small></section><div id="app" hidden>
 <section class="card" id="accountPanel"><div id="identity"></div><button id="logout">Sair</button><p id="stats"></p><button type="button" class="view-mode-toggle" id="refreshApp">↻ Verificar atualizações</button></section>
-<section class="card" id="androidNotificationSettings" hidden><h2>🔔 Configurações de notificações</h2><p class="muted">Escolha quando o Android deve avisar sobre vencimentos. Padrão: 9h.</p><form id="notificationSettingsForm"><label>Horário dos avisos<input type="time" id="notificationTime" value="09:00" required></label><label style="display:block;margin:9px 0"><input id="notificationThree" type="checkbox" checked style="width:auto"> 3 dias antes</label><label style="display:block;margin:9px 0"><input id="notificationEve" type="checkbox" checked style="width:auto"> Na véspera</label><label style="display:block;margin:9px 0"><input id="notificationToday" type="checkbox" checked style="width:auto"> No dia do vencimento</label><button type="submit">Salvar horário e avisos</button><p id="notificationSettingsStatus" role="status" class="muted"></p></form><small>O horário é aplicado aos próximos agendamentos no Android. O sistema pode atrasar avisos para economizar bateria.</small></section>
+<section class="card" id="browserReminderPanel" hidden role="status" aria-live="polite"><strong>🔔 Avisos de cobranças no tablet</strong><p id="browserReminderText"></p><button type="button" id="dismissBrowserReminders">Entendi</button><small>Alertas na tela só aparecem enquanto o Recebi+ estiver aberto neste dispositivo.</small></section><section class="card" id="androidNotificationSettings" hidden><h2>🔔 Configurações de notificações</h2><p class="muted">Escolha quando o Android deve avisar sobre vencimentos. Padrão: 9h.</p><form id="notificationSettingsForm"><label>Horário dos avisos<input type="time" id="notificationTime" value="09:00" required></label><label style="display:block;margin:9px 0"><input id="notificationThree" type="checkbox" checked style="width:auto"> 3 dias antes</label><label style="display:block;margin:9px 0"><input id="notificationEve" type="checkbox" checked style="width:auto"> Na véspera</label><label style="display:block;margin:9px 0"><input id="notificationToday" type="checkbox" checked style="width:auto"> No dia do vencimento</label><button type="submit">Salvar horário e avisos</button><p id="notificationSettingsStatus" role="status" class="muted"></p></form><small>O horário é aplicado aos próximos agendamentos no Android. O sistema pode atrasar avisos para economizar bateria.</small></section>
 <section class="card" id="newClientSection" hidden><h2>Novo cliente</h2><form id="clientForm"><label>Nome<input id="name" required maxlength="100"></label><label>WhatsApp com DDD<input id="phone" required inputmode="tel" autocomplete="tel" placeholder="Ex.: 92999998888" aria-describedby="phoneHelp"></label><small id="phoneHelp">Digite o DDD e o número completo. Exemplo: 92999998888.</small><small id="phoneFeedback" role="status" aria-live="polite"></small><button type="submit">Cadastrar cliente</button></form></section><section class="card" id="clientDirectory"><h2>Meus clientes</h2><p class="muted" id="directorySubtitle">Selecione um cliente para visualizar suas cobranças e avisos.</p><div class="home-tools"><button type="button" id="showNewClient">+ Novo cliente</button><button type="button" id="showNewCharge">+ Nova cobrança</button></div><div id="clients"></div></section>
 <section class="card" id="newChargeSection" hidden><h2>Novo lembrete de recebimento</h2><form id="chargeForm"><label>Cliente<select id="client" required></select></label><label>Descrição<input id="desc" required maxlength="150"></label><label>Valor total em R$<input id="amount" required type="number" min=".01" step=".01"></label><label>Parcelas<select id="count"></select></label><label>Primeiro vencimento<input id="due" type="date" required></label><div id="dates"></div><button type="submit">Salvar lembrete</button></form></section>
 <section class="card" id="helpSection" hidden><h2>Como funcionam os lembretes?</h2><p><strong>Manual:</strong> você abre o WhatsApp com a mensagem pronta, revisa e envia. Não há tarifa por mensagem da API do WhatsApp.</p><p><strong>Automático:</strong> envio programado diretamente ao cliente, sem abrir o WhatsApp. Ainda não disponível; dependerá de integração oficial, consentimento do destinatário e plano com franquia de mensagens.</p><small>O Recebi+ não envia mensagens aos clientes sem uma ação sua nesta versão.</small></section>
@@ -57,15 +57,46 @@ if(androidSettings){
     } catch(_) { $('notificationSettingsStatus').textContent='Falha ao salvar. Atualize o aplicativo Android.'; }
   });
 }
-const perReminderSettings=window.RecebiAndroid&&typeof window.RecebiAndroid.getReminderNotificationSettings==='function'&&typeof window.RecebiAndroid.saveReminderNotificationSettings==='function';
+// No Android com ponte nativa, os avisos continuam agendados pelo aplicativo.
+// Em tablets e navegadores sem a ponte, preservar preferências locais e avisar
+// SOMENTE enquanto o Recebi+ estiver aberto; não prometer alarme em segundo plano.
+const nativePerReminderSettings=!!(window.RecebiAndroid&&typeof window.RecebiAndroid.getReminderNotificationSettings==='function'&&typeof window.RecebiAndroid.saveReminderNotificationSettings==='function');
+const perReminderSettings=true;
+const WEB_REMINDER_PREF_KEY='recebiplus:web-reminder-preferences:v1:';
+let reminderOwnerId=null;
+const defaultReminderSettings=()=>({hour:9,minute:0,three:true,eve:true,today:true});
+function normalizeReminderSettings(p){
+ const defaults=defaultReminderSettings();
+ if(!p||typeof p!=='object')return defaults;
+ const hour=Number(p.hour),minute=Number(p.minute);
+ return {hour:Number.isInteger(hour)&&hour>=0&&hour<=23?hour:defaults.hour,
+  minute:Number.isInteger(minute)&&minute>=0&&minute<=59?minute:defaults.minute,
+  three:p.three!==false,eve:p.eve!==false,today:p.today!==false};
+}
+function webReminderKey(id){
+ return WEB_REMINDER_PREF_KEY+reminderOwnerId+':'+id;
+}
 function reminderSettings(id){
- try {return JSON.parse(window.RecebiAndroid.getReminderNotificationSettings(id));}
- catch(_){return {hour:9,minute:0,three:true,eve:true,today:true};}
+ if(nativePerReminderSettings){
+  try{return normalizeReminderSettings(JSON.parse(window.RecebiAndroid.getReminderNotificationSettings(id)))}
+  catch(_){return defaultReminderSettings()}
+ }
+ if(!reminderOwnerId)return defaultReminderSettings();
+ try{return normalizeReminderSettings(JSON.parse(localStorage.getItem(webReminderKey(id))||'null'))}
+ catch(_){return defaultReminderSettings()}
+}
+function saveReminderSettings(id,value){
+ const p=normalizeReminderSettings(value);
+ if(nativePerReminderSettings){window.RecebiAndroid.saveReminderNotificationSettings(id,JSON.stringify(p));return 'native'}
+ if(!reminderOwnerId)throw Error('Entre na sua conta antes de configurar este aviso.');
+ localStorage.setItem(webReminderKey(id),JSON.stringify(p));
+ return 'web';
 }
 function reminderSummary(id){
  const p=reminderSettings(id);
  const days=[p.three?'3 dias antes':null,p.eve?'na véspera':null,p.today?'no vencimento':null].filter(Boolean);
- return days.length?'🔔 Avisos às '+String(p.hour).padStart(2,'0')+':'+String(p.minute).padStart(2,'0')+' · '+days.join(', '):'🔕 Avisos desativados';
+ const core=days.length?'🔔 Avisos às '+String(p.hour).padStart(2,'0')+':'+String(p.minute).padStart(2,'0')+' · '+days.join(', '):'🔕 Avisos desativados';
+ return nativePerReminderSettings||!days.length?core:core+' · no tablet, somente com Recebi+ aberto';
 }
 function editReminderNotifications(id,summary){
  const p=reminderSettings(id);
@@ -79,19 +110,24 @@ function editReminderNotifications(id,summary){
   const cb=document.createElement('input');cb.type='checkbox';cb.checked=p[key]!==false;cb.style.width='auto';
   l.append(cb,document.createTextNode(' '+name));form.append(l);options.push([key,cb]);
  }
+ if(!nativePerReminderSettings){
+  const note=text('small','Neste tablet/navegador, os horários são salvos neste aparelho e os avisos aparecem na tela enquanto o Recebi+ estiver aberto. Com o aplicativo fechado, não há notificação automática. Configurações do celular não são alteradas.');
+  note.className='browser-reminder-warning';note.style.cssText='display:block;margin:12px 0;line-height:1.5;color:#854d0e';
+  form.append(note);
+ }
  const save=text('button','Salvar avisos');save.type='submit';form.append(save);
  const cancel=text('button','Cancelar');cancel.type='button';cancel.style.marginLeft='8px';cancel.addEventListener('click',()=>form.remove());form.append(cancel);
  form.addEventListener('submit',event=>{
   event.preventDefault();
   const [hour,minute]=time.value.split(':').map(Number);
-  if(!Number.isInteger(hour)||!Number.isInteger(minute))return;
+  if(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59)return;
   const value={hour,minute};for(const [key,cb] of options)value[key]=cb.checked;
-  try {
-   window.RecebiAndroid.saveReminderNotificationSettings(id,JSON.stringify(value));
-   summary.textContent='🔔 Salvando preferências deste lembrete…';
-   setTimeout(()=>{summary.textContent=reminderSummary(id)},350);
+  try{
+   const mode=saveReminderSettings(id,value);
+   summary.textContent=reminderSummary(id);
    form.remove();
-  }catch(_){alert('Não foi possível salvar os avisos neste aparelho.');}
+   if(mode==='web'){msg('Preferências deste lembrete salvas neste navegador. Avisos na tela somente enquanto o Recebi+ estiver aberto.');checkBrowserDueReminders()}
+  }catch(e){msg('Erro: Não foi possível salvar estes avisos: '+e.message)}
  });
  summary.parentElement.append(form);
 }
@@ -141,6 +177,38 @@ const msg=t=>{const network=/Failed to fetch|NetworkError|fetch failed|Load fail
 const text=(tag,value)=>{const e=document.createElement(tag);e.textContent=String(value);return e};
 const fmt=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)/100);
 const todayLocal=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')};
+const seenWebAlerts=new Set();
+function daysUntilReminder(dueDate,day){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))return null;
+ const parts=dueDate.split('-').map(Number),now=day.split('-').map(Number);
+ const when=Date.UTC(parts[0],parts[1]-1,parts[2]),today=Date.UTC(now[0],now[1]-1,now[2]);
+ return Math.round((when-today)/86400000);
+}
+function checkBrowserDueReminders(){
+ if(nativePerReminderSettings||!reminderOwnerId||document.visibilityState==='hidden'||$('app').hidden)return;
+ const now=new Date(),day=todayLocal(),minutes=now.getHours()*60+now.getMinutes();
+ let dueCount=0;
+ for(const charge of charges){
+  if(charge.paid)continue;
+  const remaining=daysUntilReminder(charge.due_date,day);
+  const p=reminderSettings(charge.id);
+  const enabled=(remaining===3&&p.three)||(remaining===1&&p.eve)||(remaining===0&&p.today);
+  if(!enabled||minutes<p.hour*60+p.minute)continue;
+  const key='recebiplus:web-alert-shown:v1:'+reminderOwnerId+':'+charge.id+':'+day;
+  if(seenWebAlerts.has(key))continue;
+  try{if(localStorage.getItem(key)==='1'){seenWebAlerts.add(key);continue}}catch(_){}
+  seenWebAlerts.add(key);
+  try{localStorage.setItem(key,'1')}catch(_){}
+  dueCount++;
+ }
+ if(dueCount){
+  $('browserReminderText').textContent=dueCount+' cobrança(s) pendente(s) com aviso previsto para hoje. Confira os vencimentos dos clientes.';
+  $('browserReminderPanel').hidden=false;
+ }
+}
+$('dismissBrowserReminders').addEventListener('click',()=>{$('browserReminderPanel').hidden=true});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBrowserDueReminders()});
+setInterval(checkBrowserDueReminders,60000);
 // No Android, agenda lembretes locais sem compartilhar nomes, valores ou telefones.
 function syncAndroidReminders(items) {
   try {
@@ -255,9 +323,9 @@ async function refresh(){const epoch=authEpoch,requestId=++latestRefreshId;const
   if(latest){showInlineError(actions,'A alteração não foi confirmada. O status atual é '+(latest.paid?'PAGO':'PENDENTE')+'. Verifique antes de tentar novamente.');return}
  }catch(_){}
  showInlineError(actions,'Não foi possível verificar o status da parcela. Verifique a conexão e atualize a lista antes de tentar novamente. Não repita a operação sem conferir o resultado.');
-}}));actions.append(pay);const due=text('button','Alterar data do lembrete');due.addEventListener('click',()=>action(async()=>{const entered=prompt('Novo vencimento DD/MM/AAAA:',displayDate(c.due_date));if(entered===null)return;const d=parseDisplayDate(entered);if(!d||!validDate(d))throw Error('Data inválida');if(!requireConnection()){showInlineError(actions,'Sem conexão. A nova data não foi enviada.');return}try{await withConnectionDeadline(repo.changeDue(c.id,d,c.version));await withConnectionDeadline(refresh())}catch(e){try{await withConnectionDeadline(refresh());const current=charges.find(item=>item.id===c.id);if(current?.due_date===d){msg('Nova data confirmada após atualizar a lista.');return}if(current){showInlineError(actions,'A data atual é '+displayDate(current.due_date)+'. Confira antes de tentar novamente.');return}}catch(_){}showInlineError(actions,'Não foi possível verificar a nova data. Atualize a lista antes de repetir a operação. '+e.message)}}));if(!c.paid)actions.append(due);if(!c.paid&&perReminderSettings){const configure=text('button','🔔 Configurar avisos');configure.addEventListener('click',()=>{const existing=div.querySelector('form');if(existing){existing.remove();return}editReminderNotifications(c.id,div.querySelector('.reminder-notification-summary'))});actions.append(configure)}if(!c.paid&&customer){const wa=text('button','Preparar WhatsApp (envio manual)');wa.addEventListener('click',()=>{const phone=customer.phone.startsWith('55')&&customer.phone.length>=12?customer.phone:'55'+customer.phone;const message='Olá, '+customer.name+'! Passando para lembrar do valor de '+fmt(c.cents)+' referente a '+c.description.replace(/[\s,.;:·]+(?=· parcela)/g,' ') +', previsto para '+displayDate(c.due_date)+'. Se já estiver resolvido, desconsidere esta mensagem.';window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(message),'_blank','noopener,noreferrer')});actions.append(wa)}const remove=text('button','Excluir cobrança');remove.className='danger-button';remove.addEventListener('click',()=>action(async()=>{if(!await confirmRecebi('Excluir definitivamente esta cobrança de '+fmt(c.cents)+'? Esta ação não pode ser desfeita.',{danger:true,confirmLabel:'Excluir cobrança'}))return;if(!requireConnection()){showInlineError(actions,'Sem conexão. Exclusão não enviada.');return}try{await withConnectionDeadline(repo.deleteCharge(c.id,c.version));await withConnectionDeadline(refresh())}catch(e){try{await withConnectionDeadline(refresh());if(!charges.some(item=>item.id===c.id)){msg('Exclusão confirmada após atualizar a lista.');return}}catch(_){}showInlineError(actions,'Não foi possível confirmar a exclusão. Atualize a lista e confira se a cobrança ainda existe antes de tentar novamente. '+e.message)}}));actions.append(remove);const manager=document.createElement('details');manager.className='reminder-manage';const summary=document.createElement('summary');summary.textContent='⚙ Gerenciar parcela';manager.append(summary,actions);const quickActions=document.createElement('div');quickActions.className='reminder-quick-actions';quickActions.append(manager);if(c.paid){const receipt=text('button','Emitir recibo');receipt.type='button';receipt.className='receipt-button';receipt.title='Abrir o Daiz-e original para revisar e emitir o recibo da parcela PAGA';receipt.addEventListener('click',()=>action(async()=>{if(!await confirmRecebi('Confirma que o pagamento desta parcela foi efetivamente recebido?\n\nO Daiz-e original será aberto com os dados preenchidos para revisão e emissão do recibo. O Recebi+ não verifica movimentações bancárias.'))return;await prepareDaizeReceipt(c.id)}));quickActions.append(receipt);const hint=text('small','O Daiz-e abrirá para conferir e confirmar a emissão do recibo.');hint.className='receipt-experiment-note';hint.style.display='block';hint.style.marginTop='5px';div.append(quickActions,hint)}else{div.append(quickActions)}$('charges').append(div)}$('stats').textContent=customers.length+' clientes · '+charges.length+' lembretes · '+fmt(charges.filter(c=>!c.paid).reduce((n,c)=>n+Number(c.cents),0))+' em lembretes pendentes';syncAndroidReminders(charges);applyViewMode();msg('')}
+}}));actions.append(pay);const due=text('button','Alterar data do lembrete');due.addEventListener('click',()=>action(async()=>{const entered=prompt('Novo vencimento DD/MM/AAAA:',displayDate(c.due_date));if(entered===null)return;const d=parseDisplayDate(entered);if(!d||!validDate(d))throw Error('Data inválida');if(!requireConnection()){showInlineError(actions,'Sem conexão. A nova data não foi enviada.');return}try{await withConnectionDeadline(repo.changeDue(c.id,d,c.version));await withConnectionDeadline(refresh())}catch(e){try{await withConnectionDeadline(refresh());const current=charges.find(item=>item.id===c.id);if(current?.due_date===d){msg('Nova data confirmada após atualizar a lista.');return}if(current){showInlineError(actions,'A data atual é '+displayDate(current.due_date)+'. Confira antes de tentar novamente.');return}}catch(_){}showInlineError(actions,'Não foi possível verificar a nova data. Atualize a lista antes de repetir a operação. '+e.message)}}));if(!c.paid)actions.append(due);if(!c.paid&&perReminderSettings){const configure=text('button','🔔 Configurar avisos');configure.addEventListener('click',()=>{const existing=div.querySelector('form');if(existing){existing.remove();return}editReminderNotifications(c.id,div.querySelector('.reminder-notification-summary'))});actions.append(configure)}if(!c.paid&&customer){const wa=text('button','Preparar WhatsApp (envio manual)');wa.addEventListener('click',()=>{const phone=customer.phone.startsWith('55')&&customer.phone.length>=12?customer.phone:'55'+customer.phone;const message='Olá, '+customer.name+'! Passando para lembrar do valor de '+fmt(c.cents)+' referente a '+c.description.replace(/[\s,.;:·]+(?=· parcela)/g,' ') +', previsto para '+displayDate(c.due_date)+'. Se já estiver resolvido, desconsidere esta mensagem.';window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(message),'_blank','noopener,noreferrer')});actions.append(wa)}const remove=text('button','Excluir cobrança');remove.className='danger-button';remove.addEventListener('click',()=>action(async()=>{if(!await confirmRecebi('Excluir definitivamente esta cobrança de '+fmt(c.cents)+'? Esta ação não pode ser desfeita.',{danger:true,confirmLabel:'Excluir cobrança'}))return;if(!requireConnection()){showInlineError(actions,'Sem conexão. Exclusão não enviada.');return}try{await withConnectionDeadline(repo.deleteCharge(c.id,c.version));await withConnectionDeadline(refresh())}catch(e){try{await withConnectionDeadline(refresh());if(!charges.some(item=>item.id===c.id)){msg('Exclusão confirmada após atualizar a lista.');return}}catch(_){}showInlineError(actions,'Não foi possível confirmar a exclusão. Atualize a lista e confira se a cobrança ainda existe antes de tentar novamente. '+e.message)}}));actions.append(remove);const manager=document.createElement('details');manager.className='reminder-manage';const summary=document.createElement('summary');summary.textContent='⚙ Gerenciar parcela';manager.append(summary,actions);const quickActions=document.createElement('div');quickActions.className='reminder-quick-actions';quickActions.append(manager);if(c.paid){const receipt=text('button','Emitir recibo');receipt.type='button';receipt.className='receipt-button';receipt.title='Abrir o Daiz-e original para revisar e emitir o recibo da parcela PAGA';receipt.addEventListener('click',()=>action(async()=>{if(!await confirmRecebi('Confirma que o pagamento desta parcela foi efetivamente recebido?\n\nO Daiz-e original será aberto com os dados preenchidos para revisão e emissão do recibo. O Recebi+ não verifica movimentações bancárias.'))return;await prepareDaizeReceipt(c.id)}));quickActions.append(receipt);const hint=text('small','O Daiz-e abrirá para conferir e confirmar a emissão do recibo.');hint.className='receipt-experiment-note';hint.style.display='block';hint.style.marginTop='5px';div.append(quickActions,hint)}else{div.append(quickActions)}$('charges').append(div)}$('stats').textContent=customers.length+' clientes · '+charges.length+' lembretes · '+fmt(charges.filter(c=>!c.paid).reduce((n,c)=>n+Number(c.cents),0))+' em lembretes pendentes';syncAndroidReminders(charges);applyViewMode();checkBrowserDueReminders();msg('')}
 $('retryConnection').addEventListener('click',()=>{msg('Tentando conectar…');authView().catch(e=>msg('Erro: '+e.message))});
-async function authView(){if(recovering){syncAndroidReminders([]);$('auth').hidden=true;$('app').hidden=true;$('recovery').hidden=false;msg('Digite uma nova senha para concluir a recuperação.');return}const epoch=++authEpoch;latestRefreshId++;syncAndroidReminders([]);customers=[];charges=[];$('clients').replaceChildren();$('charges').replaceChildren();$('priority').replaceChildren();$('stats').textContent='';$('identity').textContent='';$('app').hidden=true;const {data:{user},error}=await supabase.auth.getUser();if(epoch!==authEpoch)return;if(error&&error.name!=='AuthSessionMissingError'&&!/Auth session missing/i.test(error.message||''))throw error;$('auth').hidden=!!user;$('app').hidden=!user;if(user){$('identity').textContent='Conta: '+user.email;try{await refresh();showClientDirectory()}catch(e){$('app').hidden=true;throw e}}else{customers=[];charges=[];syncAndroidReminders([]);$('clients').replaceChildren();$('charges').replaceChildren();msg('Entre para acessar seus dados')}}
+async function authView(){if(recovering){syncAndroidReminders([]);$('auth').hidden=true;$('app').hidden=true;$('recovery').hidden=false;msg('Digite uma nova senha para concluir a recuperação.');return}const epoch=++authEpoch;latestRefreshId++;reminderOwnerId=null;$('browserReminderPanel').hidden=true;syncAndroidReminders([]);customers=[];charges=[];$('clients').replaceChildren();$('charges').replaceChildren();$('priority').replaceChildren();$('stats').textContent='';$('identity').textContent='';$('app').hidden=true;const {data:{user},error}=await supabase.auth.getUser();if(epoch!==authEpoch)return;if(error&&error.name!=='AuthSessionMissingError'&&!/Auth session missing/i.test(error.message||''))throw error;$('auth').hidden=!!user;$('app').hidden=!user;if(user){reminderOwnerId=user.id;$('identity').textContent='Conta: '+user.email;try{await refresh();showClientDirectory()}catch(e){$('app').hidden=true;throw e}}else{customers=[];charges=[];syncAndroidReminders([]);$('clients').replaceChildren();$('charges').replaceChildren();msg('Entre para acessar seus dados')}}
 $('forgot').addEventListener('click',()=>action(async()=>{const email=$('email').value.trim();if(!email||!$('email').checkValidity())throw Error('Informe um e-mail válido antes de recuperar a senha.');const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+window.location.pathname});if(error)throw error;msg('Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.')}));
 const validNewPassword=password=>typeof password==='string'&&password.length>=12&&/[A-Za-zÀ-ÿ]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-zÀ-ÿ0-9]/.test(password);
 $('recoveryForm').addEventListener('submit',e=>{e.preventDefault();action(async()=>{const password=$('newPassword').value;if(!validNewPassword(password))throw Error('Use pelo menos 12 caracteres, incluindo letras, números e um símbolo.');const {error}=await supabase.auth.updateUser({password});if(error)throw error;recovering=false;$('recovery').hidden=true;$('newPassword').value='';await authView();msg('Senha alterada com sucesso.')} )});
@@ -296,7 +364,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-23-receipt-real-20';
+const RECEBI_BUILD='2026-10-23-tablet-reminders-21';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
