@@ -66,7 +66,7 @@ test('Interface exibe o botão onde o usuário indicou e mascara valor do novo c
  assert.match(html,/attachMoneyMask\(\$\('amount'\)\)/);
  assert.match(html,/const valueEditor=setupValueEditor/);
  assert.match(html,/total=parseCurrencyCents\(\$\('amount'\)\.value\)/);
- assert.match(html,/const RECEBI_BUILD='2026-10-23-resend-test-24'/);
+ assert.match(html,/const RECEBI_BUILD='2026-10-23-email-0900-once-25'/);
 });
 
 test('Repository usa uma transação via RPC para recalcular todo o grupo',async()=>{
