@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 
 const functionSrc=await fs.readFile(new URL('../supabase/functions/recebiplus-due-emails/index.ts',import.meta.url),'utf8');
 const sql=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_due_alerts.sql',import.meta.url),'utf8');
-const cron=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_cron.sql',import.meta.url),'utf8');
+const cron=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_0900_once_daily.sql',import.meta.url),'utf8');
 const app=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
 
 const helperSrc=functionSrc.slice(functionSrc.indexOf('function dateAtManaus('),functionSrc.indexOf('async function loadDueRows('));
@@ -16,7 +16,10 @@ test('Os alertas são exatamente 2 dias antes e no dia, em Manaus',()=>{
  assert.equal(helpers.addCalendarDays('2026-12-30',2),'2027-01-01');
  assert.equal(helpers.dateAtManaus(new Date('2026-10-23T03:00:00Z')),'2026-10-22');
  assert.equal(helpers.dateAtManaus(new Date('2026-10-23T15:30:00Z')),'2026-10-23');
- assert.match(cron,/0 13-22 \* \* \*/);
+ assert.match(cron,/0 13 \* \* \*/);
+ assert.match(cron,/cron\.unschedule\('recebiplus_due_email_hourly'\)/);
+ assert.match(cron,/recebiplus_due_email_0900_manaus/);
+ assert.doesNotMatch(cron,/13-22/);
  assert.match(sql,/c\.due_date IN \(p_local_date,p_local_date\+2\)/);
 });
 
@@ -25,14 +28,20 @@ test('Uma mensagem agregada por proprietário/dia, sem parcelas pagas',()=>{
  assert.match(sql,/c\.paid=false/);
  assert.match(functionSrc,/\.eq\("paid",false\)/);
  const letter=helpers.buildMail('2026-10-23',[
-  {client_name:'Cliente A',description:'Entrada',cents:150000,due_date:'2026-10-23'},
-  {client_name:'Cliente B',description:'Parcela',cents:44900,due_date:'2026-10-25'}
+  {client_name:'Cliente A',description:'SEGREDO: entrada',cents:150000,due_date:'2026-10-23'},
+  {client_name:'Cliente B',description:'SEGREDO: prestação',cents:44900,due_date:'2026-10-25'}
  ]);
  assert.match(letter.text,/Cliente A/);
  assert.match(letter.text,/Cliente B/);
  assert.match(letter.text,/R\$\s*1\.500,00/);
  assert.match(letter.text,/R\$\s*449,00/);
- assert.match(letter.subject,/2 cobrança\(s\)/);
+ assert.match(letter.subject,/2 parcela\(s\)/);
+ assert.match(letter.html,/Nome do cliente/);
+ assert.match(letter.html,/Valor da parcela/);
+ assert.match(letter.text,/Cliente A.*1\.500,00/);
+ assert.match(letter.text,/Cliente B.*449,00/);
+ assert.doesNotMatch(letter.text,/SEGREDO/);
+ assert.doesNotMatch(letter.html,/SEGREDO/);
 });
 
 test('O e-mail preserva segurança HTML para nomes de clientes',()=>{
@@ -135,71 +144,43 @@ test('Após pagamento, lista vazia não gera email',async()=>{
 });
 
 
-const selfTestStart=functionSrc.indexOf('async function sendSetupTest(');
-const selfTestEnd=functionSrc.indexOf('Deno.serve(',selfTestStart);
-assert.ok(selfTestStart>0&&selfTestEnd>selfTestStart,'Teste de envio autenticado deve existir');
-const selfTestCode=functionSrc.slice(selfTestStart,selfTestEnd);
-test('Teste de envio é acionado apenas após autenticação do cron e nunca pelo GET público',()=>{
- const handler=functionSrc.slice(functionSrc.indexOf('Deno.serve('));
- const authorization=handler.indexOf('if(!authorized)return json({error:"unauthorized"},401)');
- const testCall=handler.indexOf('if(command?.type==="test_email")');
- assert.ok(authorization>=0&&testCall>authorization);
- assert.match(selfTestCode,/\.eq\("enabled",true\)\.limit\(2\)/);
- assert.match(selfTestCode,/if\(\(prefs\.data\|\|\[\]\)\.length!==1\)/);
- assert.match(selfTestCode,/db\.auth\.admin\.getUserById\(owner\)/);
- assert.doesNotMatch(selfTestCode,/recebiplus_charges|recebiplus_clients/);
+
+test('A formatação só mostra nomes e valores nos dois grupos de vencimento',()=>{
+ const message=helpers.buildMail('2026-10-23',[
+  {client_name:'Pessoa Hoje',description:'Outra informação',cents:18700,due_date:'2026-10-23'},
+  {client_name:'Pessoa Em Dois Dias',description:'Outro título',cents:44900,due_date:'2026-10-25'}
+ ]);
+ assert.match(message.text,/Vencem HOJE · 23\/10\/2026/);
+ assert.match(message.text,/Vencem em 2 dias · 25\/10\/2026/);
+ assert.match(message.text,/Pessoa Hoje — R\$\s*187,00/);
+ assert.match(message.text,/Pessoa Em Dois Dias — R\$\s*449,00/);
+ assert.doesNotMatch(message.text,/Outra informação|Outro título/);
+ assert.match(message.html,/Nome do cliente/);
+ assert.match(message.html,/Valor da parcela/);
+ assert.doesNotMatch(message.html,/Outra informação|Outro título/);
 });
-function mockSelfTest({enabledOwners=['owner'],emailConfirmed=true,providerCode=200}={}){
- const events={callCount:0,to:null,body:null,headers:null};
- const db={
-  from:name=>{assert.equal(name,'recebiplus_email_preferences');return {
-   select(){return this},eq(){return this},async limit(){return {data:enabledOwners.map(owner_id=>({owner_id})),error:null}}
-  }},
-  auth:{admin:{getUserById:async(id)=>{
-   assert.equal(id,'owner');
-   return {data:{user:{email:'conta@example.com',email_confirmed_at:emailConfirmed?'2026-10-23':null}},error:null};
-  }}}
- };
- const fakeFetch=async(url,options)=>{
-  assert.equal(url,'https://api.resend.com/emails');
-  events.callCount++;
-  events.to=JSON.parse(options.body).to;
-  events.body=JSON.parse(options.body);
-  events.headers=options.headers;
-  return {ok:providerCode===200,status:providerCode,
-   json:async()=>providerCode===200?{id:'provider-id'}:{name:'validation_error'}};
- };
- const json=(body,status=200)=>({http_status:status,...body});
- const run=new Function('fetch','json','dateAtManaus',selfTestCode+';return sendSetupTest;')(
-  fakeFetch,json,()=> '2026-10-23'
- );
- return {result:()=>run(db,'KEY_PLACEHOLDER','Recebi+ <onboarding@resend.dev>'),events};
-}
-test('Envio de teste chega somente ao e-mail autenticado, com uma chave idempotente',async()=>{
- const e=mockSelfTest();const response=await e.result();
- assert.equal(response.status,'test_submitted');
- assert.equal(e.events.callCount,1);
- assert.deepEqual(e.events.to,['conta@example.com']);
- assert.equal(e.events.body.from,'Recebi+ <onboarding@resend.dev>');
- assert.match(e.events.body.subject,/Teste/);
- assert.match(e.events.body.text,/Nenhuma cobrança foi criada ou alterada/);
- assert.equal(e.events.headers['Idempotency-Key'],'recebiplus-setup-test-owner-2026-10-23');
- assert.doesNotMatch(JSON.stringify(e.events.body),/api_key|KEY_PLACEHOLDER/);
+test('Não renderiza seção de vencimento inexistente',()=>{
+ const mail=helpers.buildMail('2026-10-23',[
+  {client_name:'Pessoa',description:'Plano',cents:50000,due_date:'2026-10-25'}
+ ]);
+ assert.doesNotMatch(mail.html,/Vencem HOJE/);
+ assert.match(mail.html,/Vencem em 2 dias/);
+ assert.doesNotMatch(mail.text,/Vencem HOJE/);
 });
-test('Teste rejeita ausência de conta opt-in ou multiplicidade de contas',async()=>{
- for(const owners of [[],['owner','outra']]){
-  const e=mockSelfTest({enabledOwners:owners});
-  const response=await e.result();
-  assert.equal(response.http_status,409);
-  assert.equal(e.events.callCount,0);
- }
+test('Não existem mais mensagens de teste fora dos vencimentos',()=>{
+ assert.doesNotMatch(functionSrc,/sendSetupTest|test_email|recebiplus-setup-test/);
+ assert.match(functionSrc,/const day=dateAtManaus\(\);\s*const summary=await runDaily/);
 });
-test('Teste rejeita e-mail não confirmado e informa rejeição do provedor',async()=>{
- const unconfirmed=mockSelfTest({emailConfirmed:false});
- assert.equal((await unconfirmed.result()).error,'login_email_not_confirmed');
- assert.equal(unconfirmed.events.callCount,0);
- const provider=mockSelfTest({providerCode:403});
- const response=await provider.result();
- assert.equal(response.status,'test_rejected');
- assert.equal(response.provider_status,403);
+test('O servidor só consulta parcelas pendentes com vencimento hoje ou daqui a 2 dias',()=>{
+ const src=functionSrc.slice(functionSrc.indexOf('async function loadDueRows('),functionSrc.indexOf('async function runDaily('));
+ assert.match(src,/\.eq\("owner_id",ownerId\)\.eq\("paid",false\)/);
+ assert.match(src,/\.in\("due_date",\[day,plusTwo\]\)/);
+ assert.doesNotMatch(src,/due_date.*?[-+]3|overdue/i);
+});
+test('A operação no banco bloqueia qualquer segunda tentativa no mesmo dia',()=>{
+ assert.match(cron,/NOT EXISTS \([\s\S]*?public\.recebiplus_email_runs/);
+ assert.match(cron,/ON CONFLICT \(owner_id,local_date\) DO NOTHING/);
+ assert.doesNotMatch(cron,/l\.attempts\s*<\s*4|locked_until<=now\(\)/);
+ assert.match(cron,/cron\.unschedule\('recebiplus_due_email_hourly'\)/);
+ assert.match(cron,/\'0 13 \* \* \*\'/);
 });
