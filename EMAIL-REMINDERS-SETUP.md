@@ -2,7 +2,7 @@
 
 ## Estado técnico
 
-**Infraestrutura preparada e implantada**, mas o envio real depende da configuração do remetente Resend (sem plano pago obrigatório). Enquanto os segredos não existirem, a Edge Function responde \`email_service_not_configured\` e nenhum e-mail é enviado.
+**Infraestrutura preparada e implantada**. Para testar o envio apenas para o próprio e-mail da conta Resend, basta cadastrar o segredo \`RESEND_API_KEY\` no Supabase. O remetente temporário será \`Recebi+ <onboarding@resend.dev>\`. Não use o remetente de teste para usuários diferentes do titular Resend. Para ativação definitiva e outros destinatários, verifique domínio próprio e cadastre também \`RESEND_FROM_EMAIL\`. Sem chave, nenhum e-mail é enviado.
 
 ## Comportamento confirmado
 
