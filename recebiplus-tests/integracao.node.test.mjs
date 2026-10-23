@@ -11,7 +11,7 @@ test('A pagina experimental tem JavaScript valido e nao altera a tela original',
  assert.doesNotThrow(()=>new Function(moduleScript.replace(/^import .*?;\s*$/gm,'')));
  assert.match(original,/Recebi\+ · Lembretes de recebimentos/);
  assert.doesNotMatch(original,/id="demo"|id="discard"/);
- assert.match(original,/const DAIZE_TEST_TARGET='https:\/\/advandrerbernardo-maker\.github\.io\/Daiz-e\/integracao-teste\.html'/);
+ assert.match(original,/const DAIZE_RECEIPT_TARGET='https:\/\/advandrerbernardo-maker\.github\.io\/Daiz-e\/index\.html\?recebiplus=1'/);
 });
 test('Somente consultas de cobrancas pagas; sem escrita no Supabase',()=>{
  assert.match(moduleScript,/\.eq\('owner_id',uid\)\.eq\('paid',true\)/);
@@ -47,17 +47,17 @@ test('Simulacao ficticia transfere nome e centavos corretamente',()=>{
 
 
 const appModule=original.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1]||'';
-const bridgeStart=appModule.indexOf('const DAIZE_TEST_TARGET=');
+const bridgeStart=appModule.indexOf('const DAIZE_RECEIPT_TARGET=');
 const bridgeEnd=appModule.indexOf('let latestRefreshId=0;',bridgeStart);
 const bridgeCode=appModule.slice(bridgeStart,bridgeEnd);
 
 test('A interface exibe Emitir recibo apenas no estado PAGO e junto de Gerenciar parcela',()=>{
- assert.ok(bridgeCode.includes("async function prepareDaizeTestReceipt(chargeId)"));
+ assert.ok(bridgeCode.includes("async function prepareDaizeReceipt(chargeId)"));
  assert.match(original,/if\(c\.paid\)\{const receipt=text\('button','Emitir recibo'\)/);
  assert.match(original,/quickActions\.append\(manager\);if\(c\.paid\)/);
  assert.match(original,/quickActions\.append\(receipt\)/);
  assert.match(original,/className='receipt-button'/);
- assert.match(original,/Integração em teste: o recibo gerado será SEM VALIDADE/);
+ assert.match(original,/O Daiz-e abrirá para conferir e confirmar a emissão do recibo/);
  assert.doesNotMatch(original,/id="runDiagnostics"/);
 });
 test('O botão revalida pagamento e titularidade antes de preparar recibo',()=>{
@@ -87,23 +87,24 @@ const prepareWithMock=({paid=true,owner='conta1',clientName='Cliente Silva',offl
    }}
   }
  };
- const prepare=new Function('supabase','withConnectionDeadline','requireConnection','authEpoch','window','localStorage','crypto','URL',bridgeCode+';return prepareDaizeTestReceipt;')(client,async promise=>await promise,()=>!offline,1,window,storage,{randomUUID:()=> 'nonce-test'},URL);
+ const prepare=new Function('supabase','withConnectionDeadline','requireConnection','authEpoch','window','localStorage','crypto','URL',bridgeCode+';return prepareDaizeReceipt;')(client,async promise=>await promise,()=>!offline,1,window,storage,{randomUUID:()=> 'nonce-test'},URL);
  return {prepare,queries,entries,window};
 };
-test('Parcela paga gera rascunho correto e abre somente o Daiz-e experimental',async()=>{
+test('Parcela paga gera rascunho para o Daiz-e original após validação',async()=>{
  const a=prepareWithMock();
  await a.prepare('parcela1');
- const entry=JSON.parse(a.entries.get('recebiplus-daize-beta-handoff-v1'));
- assert.equal(entry.kind,'recebiplus-daize-test-v1');
+ const entry=JSON.parse(a.entries.get('recebiplus-daize-receipt-handoff-v1'));
+ assert.equal(entry.kind,'recebiplus-daize-receipt-v1');
  assert.equal(entry.name,'Cliente Silva');
  assert.equal(entry.cents,10000);
  assert.equal(entry.description,'Entrada de lote');
  assert.equal(entry.source,'paid');
  assert.equal(entry.charge_id,'parcela1');
+ assert.equal(entry.owner_id,'conta1');
  assert.equal(a.queries[0].filters.owner_id,'conta1');
  assert.equal(a.queries[0].filters.paid,true);
  assert.equal(a.queries[1].filters.id,'cliente1');
- assert.equal(a.window.location.target,'https://advandrerbernardo-maker.github.io/Daiz-e/integracao-teste.html');
+ assert.equal(a.window.location.target,'https://advandrerbernardo-maker.github.io/Daiz-e/index.html?recebiplus=1');
  assert.equal(Object.hasOwn(entry,'password'),false);
  assert.equal(Object.hasOwn(entry,'phone'),false);
  assert.equal(Object.hasOwn(entry,'cpf'),false);
@@ -126,4 +127,12 @@ test('Sem internet bloqueia a integracao sem gravar rascunho',async()=>{
  assert.equal(a.entries.size,0);
  assert.equal(a.queries.length,0);
  assert.equal(a.window.location.target,null);
+});
+
+test('Avisos reforçam que o recebimento é manual e o recibo só é emitido no Daiz-e',()=>{
+ assert.match(original,/Confirma que o pagamento desta parcela foi efetivamente recebido/);
+ assert.match(original,/O Recebi\+ não verifica movimentações bancárias/);
+ assert.match(original,/Se já emitiu um recibo no Daiz-e, ele não será cancelado automaticamente/);
+ assert.match(original,/const RECEBI_BUILD='2026-10-23-receipt-real-20'/);
+ assert.doesNotMatch(appModule,/DAIZE_TEST_TARGET|prepareDaizeTestReceipt/);
 });
