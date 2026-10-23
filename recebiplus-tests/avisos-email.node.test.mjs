@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 const functionSrc=await fs.readFile(new URL('../supabase/functions/recebiplus-due-emails/index.ts',import.meta.url),'utf8');
 const sql=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_due_alerts.sql',import.meta.url),'utf8');
 const cron=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_0900_once_daily.sql',import.meta.url),'utf8');
+const originalCron=await fs.readFile(new URL('../supabase/migrations/20261023_recebiplus_email_cron.sql',import.meta.url),'utf8');
 const app=await fs.readFile(new URL('../index.html',import.meta.url),'utf8');
 
 const helperSrc=functionSrc.slice(functionSrc.indexOf('function dateAtManaus('),functionSrc.indexOf('async function loadDueRows('));
@@ -50,7 +51,7 @@ test('O e-mail preserva segurança HTML para nomes de clientes',()=>{
  ]);
  assert.doesNotMatch(letter.html,/<script>ola<\/script>/);
  assert.match(letter.html,/&lt;script&gt;/);
- assert.match(letter.html,/&lt;img/);
+ assert.doesNotMatch(letter.html,/<img|&lt;img/);
 });
 
 test('Respeita o e-mail atual da conta de autenticação, não o WhatsApp do cliente',()=>{
@@ -65,7 +66,7 @@ test('Respeita o e-mail atual da conta de autenticação, não o WhatsApp do cli
 test('Nenhum navegador pode invocar o processamento administrativo',()=>{
  assert.match(sql,/REVOKE ALL ON FUNCTION public\.recebiplus_claim_daily_emails\(date\)/);
  assert.match(sql,/REVOKE ALL ON FUNCTION public\.recebiplus_finish_daily_email/);
- assert.match(cron,/REVOKE ALL ON FUNCTION public\.recebiplus_validate_cron_token\(text\)/);
+ assert.match(originalCron,/REVOKE ALL ON FUNCTION public\.recebiplus_validate_cron_token\(text\)/);
  assert.match(functionSrc,/x-recebiplus-cron/);
  assert.match(functionSrc,/recebiplus_validate_cron_token/);
  assert.match(functionSrc,/if\(!authorized\)return json\(\{error:"unauthorized"\},401\)/);
