@@ -32,6 +32,20 @@ export function createRecebiRepository(supabase) {
       if(saved.length!==entries.length||entries.some(e=>!saved.some(row=>row.description===e.description&&Number(row.cents)===Number(e.cents)&&row.due_date===e.due_date&&row.client_id===e.client_id))) throw new Error('Cobrança não confirmada. Atualize antes de tentar novamente.');
       return saved;
     },
+    async recalculateGroup(client_id,group_id,new_total_cents,expected_versions) {
+      await userId(); // Garante sessão válida antes de chamar RPC SECURITY INVOKER.
+      if(!client_id||!group_id||!Number.isSafeInteger(new_total_cents)||new_total_cents<1
+        ||new_total_cents>200000000000||!expected_versions||typeof expected_versions!=='object')
+        throw new Error('Dados inválidos para editar o total.');
+      const data=await query(supabase.rpc('recebiplus_recalculate_group',{
+        p_client_id:client_id,p_group_id:group_id,p_new_total:new_total_cents,
+        p_expected_versions:expected_versions
+      }));
+      if(!Array.isArray(data)||data.length===0||
+         data.reduce((n,row)=>n+Number(row.new_cents),0)!==new_total_cents)
+        throw new Error('Novo total não confirmado. Atualize a lista antes de tentar novamente.');
+      return data;
+    },
     async setPaid(id,paid,version) {
       const owner_id=await userId();
       const data=await query(supabase.from('recebiplus_charges').update({paid}).eq('owner_id',owner_id).eq('id',id).eq('version',version).select());
