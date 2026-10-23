@@ -73,11 +73,12 @@ const supabase=createClient('https://ytdantnjhegdvzwhgjcu.supabase.co','sb_publi
 const repo=createRecebiRepository(supabase),$=id=>document.getElementById(id);
 
 const EMAIL_SERVICE_STATUS_URL='https://ytdantnjhegdvzwhgjcu.supabase.co/functions/v1/recebiplus-due-emails';
-let emailServiceConfigured=false,emailOwnerId=null,emailPrefEpoch=0;
+let emailServiceConfigured=false,emailServiceMode='unknown',emailOwnerId=null,emailPrefEpoch=0;
 function emailStatusMessage(enabled){
  if(!enabled)return 'Avisos por e-mail desativados nesta conta.';
- if(!emailServiceConfigured)return 'Preferência salva. O remetente automático ainda precisa ser configurado; os e-mails NÃO estão sendo enviados.';
- return 'Avisos por e-mail ativados. Resumos enviados às 09:00 (Manaus), 2 dias antes e no vencimento, conforme agendamento.';
+ if(!emailServiceConfigured)return 'Preferência salva. Falta cadastrar a chave Resend no Supabase; os e-mails NÃO estão sendo enviados.';
+ if(emailServiceMode==='resend_test_account_only')return 'Modo de teste habilitado. Somente o e-mail cadastrado na conta Resend pode receber. Os avisos serão tentados às 09:00 (Manaus); confira a primeira entrega.';
+ return 'Avisos por e-mail ativados. Resumos programados para as 09:00 (Manaus), 2 dias antes e no vencimento. Confira a primeira entrega.';
 }
 async function loadEmailAlertPreferences(user){
  const epoch=++emailPrefEpoch;
@@ -96,10 +97,10 @@ async function loadEmailAlertPreferences(user){
  }catch(e){dbProblem=e}
  if(epoch!==emailPrefEpoch||emailOwnerId!==user.id)return;
  $('emailNotificationEnabled').checked=enabled;
- emailServiceConfigured=false;
+ emailServiceConfigured=false;emailServiceMode='unknown';
  try{
   const request=await withConnectionDeadline(fetch(EMAIL_SERVICE_STATUS_URL,{method:'GET',cache:'no-store'}),12000);
-  if(request.ok){const info=await request.json();emailServiceConfigured=info?.configured===true}
+  if(request.ok){const info=await request.json();emailServiceConfigured=info?.configured===true;emailServiceMode=info?.mode||'unknown'}
  }catch(_){}
  if(epoch!==emailPrefEpoch||emailOwnerId!==user.id)return;
  $('emailNotificationEnabled').disabled=Boolean(dbProblem);
@@ -455,7 +456,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-23-money-edit-23';
+const RECEBI_BUILD='2026-10-23-resend-test-24';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
