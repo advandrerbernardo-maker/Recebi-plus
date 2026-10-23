@@ -3,8 +3,10 @@
 // Segredos SOMENTE no Supabase (nunca no navegador ou GitHub).
 import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
+const ORIGIN="https://advandrerbernardo-maker.github.io";
+const cors={"access-control-allow-origin":ORIGIN,"access-control-allow-methods":"GET, POST, OPTIONS","access-control-allow-headers":"authorization,apikey,content-type,x-recebiplus-cron"};
 const json=(value,status=200)=>new Response(JSON.stringify(value),{
- status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}
+ status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store",...cors}
 });
 function constantTimeEqual(a,b){
  if(!a||!b)return false;
@@ -138,18 +140,27 @@ async function runDaily(db,resendKey,fromEmail,day){
  return totals;
 }
 Deno.serve(async req=>{
- if(req.method!=="POST")return json({error:"method_not_allowed"},405);
- // Nunca processe sem configuração completa e credenciais privadas.
- const cronToken=Deno.env.get("RECEBIPLUS_CRON_TOKEN");
+ if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
  const resendKey=Deno.env.get("RESEND_API_KEY");
  const fromEmail=Deno.env.get("RESEND_FROM_EMAIL");
+ if(req.method==="GET")return json({configured:Boolean(resendKey&&fromEmail),timezone:"America/Manaus",hour:"09:00"});
+ if(req.method!=="POST")return json({error:"method_not_allowed"},405);
  const url=Deno.env.get("SUPABASE_URL");
  const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
- if(!cronToken||!resendKey||!fromEmail||!url||!serviceKey)
-  return json({status:"email_service_not_configured"},503);
- if(!constantTimeEqual(req.headers.get("x-recebiplus-cron")||"",cronToken))
-  return json({error:"unauthorized"},401);
+ if(!url||!serviceKey)return json({error:"service_unavailable"},503);
  const db=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
+ const supplied=req.headers.get("x-recebiplus-cron")||"";
+ // O segredo nasce e fica no Vault. Apenas o serviço com papel service_role
+ // consegue verificar o token; nenhum usuário comum pode invocar essa RPC.
+ const envToken=Deno.env.get("RECEBIPLUS_CRON_TOKEN");
+ let authorized=false;
+ if(envToken)authorized=constantTimeEqual(supplied,envToken);
+ else if(supplied.length>=32&&supplied.length<=256){
+  const verified=await db.rpc("recebiplus_validate_cron_token",{p_token:supplied});
+  authorized=Boolean(!verified.error&&verified.data===true);
+ }
+ if(!authorized)return json({error:"unauthorized"},401);
+ if(!resendKey||!fromEmail)return json({status:"email_service_not_configured"},503);
  try{
   const day=dateAtManaus();
   const summary=await runDaily(db,resendKey,fromEmail,day);
