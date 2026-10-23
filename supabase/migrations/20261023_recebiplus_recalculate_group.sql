@@ -76,7 +76,7 @@ BEGIN
     IF v_count=0 THEN
         RAISE EXCEPTION 'Parcelamento não encontrado nesta conta.';
     END IF;
-    IF jsonb_object_length(p_expected_versions) <> v_count THEN
+    IF (SELECT count(*) FROM jsonb_object_keys(p_expected_versions)) <> v_count THEN
         RAISE EXCEPTION 'Quantidade de parcelas alterada. Atualize antes de continuar.';
     END IF;
     IF v_pending=0 THEN
