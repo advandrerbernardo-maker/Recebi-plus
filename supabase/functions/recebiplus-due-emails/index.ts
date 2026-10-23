@@ -142,8 +142,11 @@ async function runDaily(db,resendKey,fromEmail,day){
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
  const resendKey=Deno.env.get("RESEND_API_KEY");
- const fromEmail=Deno.env.get("RESEND_FROM_EMAIL");
- if(req.method==="GET")return json({configured:Boolean(resendKey&&fromEmail),timezone:"America/Manaus",hour:"09:00"});
+ // Permite a primeira confirmação sem domínio: sender do Resend apenas para o
+ // endereço de e-mail da própria conta Resend. Produção requer domínio validado.
+ const verifiedSender=Deno.env.get("RESEND_FROM_EMAIL")?.trim();
+ const fromEmail=verifiedSender || "Recebi+ <onboarding@resend.dev>";
+ if(req.method==="GET")return json({configured:Boolean(resendKey),mode:verifiedSender?"verified_domain":"resend_test_account_only",timezone:"America/Manaus",hour:"09:00"});
  if(req.method!=="POST")return json({error:"method_not_allowed"},405);
  const url=Deno.env.get("SUPABASE_URL");
  const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -160,7 +163,7 @@ Deno.serve(async req=>{
   authorized=Boolean(!verified.error&&verified.data===true);
  }
  if(!authorized)return json({error:"unauthorized"},401);
- if(!resendKey||!fromEmail)return json({status:"email_service_not_configured"},503);
+ if(!resendKey)return json({status:"email_service_not_configured"},503);
  try{
   const day=dateAtManaus();
   const summary=await runDaily(db,resendKey,fromEmail,day);
