@@ -15,8 +15,32 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 .client-button{border-left:5px solid #27976E}
 .client-button:hover,.view-mode-toggle:hover{background:#91E8C2}
 .client-button:focus-visible,.view-mode-toggle:focus-visible{outline:3px solid #238E6C;outline-offset:2px}
+
+/* Editor dos valores das parcelas em telas móveis e tablets. */
+.client-total-tools{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:8px 0 12px}
+.client-total-tools .client-total{margin:0}
+.edit-client-total{background:#e3edf1;color:#103748;border:1px solid #b8d0d8;font-weight:750;min-height:44px;padding:10px 14px}
+.edit-client-total:hover{background:#cfe5ed}
+.money-editor-dialog{width:min(95vw,500px);max-width:500px;max-height:calc(100dvh - 30px);overflow-y:auto}
+.money-editor-dialog .money-field{font-weight:750;font-size:20px;letter-spacing:.01em}
+.money-editor-dialog .money-hint{font-size:13px;color:#536b75;line-height:1.5}
+.money-editor-dialog .money-preview{padding:11px;background:#e6f4ee;border:1px solid #a9d6c1;border-radius:9px;margin:10px 0;line-height:1.5}
+.money-editor-dialog .money-preview.invalid{background:#fff2cf;border-color:#e6be67}
+.money-editor-dialog .money-buttons{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.money-editor-dialog .money-buttons button{flex:1 1 auto;min-height:44px}
+.money-editor-dialog label{display:block;margin:10px 0}
 </style></head><body>
-<header><strong>recebi<b>+</b></strong><div>Organize seus lembretes de recebimentos.</div></header><dialog id="recebiConfirm" class="recebi-dialog" aria-labelledby="recebiConfirmTitle"><div class="recebi-dialog-content"><h2 id="recebiConfirmTitle" class="recebi-dialog-title">Recebi+</h2><p id="recebiConfirmMessage" class="recebi-dialog-message"></p><div class="recebi-dialog-actions"><button type="button" id="recebiCancel" class="recebi-dialog-cancel">Cancelar</button><button type="button" id="recebiAccept">Confirmar</button></div></div></dialog><main>
+<header><strong>recebi<b>+</b></strong><div>Organize seus lembretes de recebimentos.</div></header><dialog id="recebiConfirm" class="recebi-dialog" aria-labelledby="recebiConfirmTitle"><div class="recebi-dialog-content"><h2 id="recebiConfirmTitle" class="recebi-dialog-title">Recebi+</h2><p id="recebiConfirmMessage" class="recebi-dialog-message"></p><div class="recebi-dialog-actions"><button type="button" id="recebiCancel" class="recebi-dialog-cancel">Cancelar</button><button type="button" id="recebiAccept">Confirmar</button></div></div></dialog><dialog id="editTotalDialog" class="recebi-dialog money-editor-dialog" aria-labelledby="editTotalTitle">
+<form id="editTotalForm" class="recebi-dialog-content" novalidate>
+<h2 id="editTotalTitle" class="recebi-dialog-title">✎ Editar valor do parcelamento</h2>
+<p class="money-hint">Informe o novo <b>valor total</b>. As parcelas já pagas serão preservadas; somente o saldo será redistribuído entre as parcelas pendentes.</p>
+<label id="editTotalGroupLabel">Parcelamento a alterar
+<select id="editTotalGroup" required></select></label>
+<label>Novo valor total (R$)
+<input id="editTotalMoney" class="money-field" type="text" inputmode="numeric" maxlength="24" autocomplete="off" placeholder="R$ 0,00" aria-describedby="editTotalPreview" required></label>
+<p class="money-preview" id="editTotalPreview" role="status" aria-live="polite"></p>
+<div class="money-buttons"><button id="cancelEditTotal" type="button" class="recebi-dialog-cancel">Cancelar</button><button id="saveEditTotal" type="submit">Salvar novo valor</button></div>
+</form></dialog><main>
 <div class="card warning" id="aboutPanel"><details class="about-details"><summary>Sobre o Recebi+ · Informações importantes</summary><p>Este aplicativo organiza lembretes de recebimentos e não recebe, movimenta ou confirma pagamentos. O status “PAGO” é informado manualmente pelo usuário.</p></details></div>
 <div id="status" role="status" aria-live="polite">Conectando…</div><div id="operationAlert" role="alert" hidden><span id="operationAlertText"></span><button id="closeOperationAlert" type="button" aria-label="Fechar aviso">×</button></div><button type="button" id="retryConnection" hidden>Tentar conexão novamente</button>
 <section class="card" id="auth"><h2>Acessar minha conta</h2><form id="login"><label>E-mail<input id="email" type="email" autocomplete="email" required></label><label>Senha<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button><button type="button" id="signup">Criar conta</button><button type="button" id="forgot">Esqueci minha senha</button></form><small>Se a confirmação por e-mail estiver ativada, confirme seu endereço antes de entrar. Para criar uma conta, use senha com pelo menos 12 caracteres, incluindo letras, números e símbolos.</small></section>
@@ -35,14 +59,16 @@ main{padding-bottom:calc(48px + var(--recebi-bottom-inset) + var(--recebi-viewpo
 <small>Os avisos são enviados pelo servidor, mesmo que o aplicativo esteja fechado, depois da ativação do serviço de envio. Apenas o e-mail usado no login receberá as mensagens; clientes não receberão e-mails.</small>
 </section><section class="card" id="androidNotificationSettings" hidden><h2>🔔 Configurações de notificações</h2><p class="muted">Escolha quando o Android deve avisar sobre vencimentos. Padrão: 9h.</p><form id="notificationSettingsForm"><label>Horário dos avisos<input type="time" id="notificationTime" value="09:00" required></label><label style="display:block;margin:9px 0"><input id="notificationThree" type="checkbox" checked style="width:auto"> 3 dias antes</label><label style="display:block;margin:9px 0"><input id="notificationEve" type="checkbox" checked style="width:auto"> Na véspera</label><label style="display:block;margin:9px 0"><input id="notificationToday" type="checkbox" checked style="width:auto"> No dia do vencimento</label><button type="submit">Salvar horário e avisos</button><p id="notificationSettingsStatus" role="status" class="muted"></p></form><small>O horário é aplicado aos próximos agendamentos no Android. O sistema pode atrasar avisos para economizar bateria.</small></section>
 <section class="card" id="newClientSection" hidden><h2>Novo cliente</h2><form id="clientForm"><label>Nome<input id="name" required maxlength="100"></label><label>WhatsApp com DDD<input id="phone" required inputmode="tel" autocomplete="tel" placeholder="Ex.: 92999998888" aria-describedby="phoneHelp"></label><small id="phoneHelp">Digite o DDD e o número completo. Exemplo: 92999998888.</small><small id="phoneFeedback" role="status" aria-live="polite"></small><button type="submit">Cadastrar cliente</button></form></section><section class="card" id="clientDirectory"><h2>Meus clientes</h2><p class="muted" id="directorySubtitle">Selecione um cliente para visualizar suas cobranças e avisos.</p><div class="home-tools"><button type="button" id="showNewClient">+ Novo cliente</button><button type="button" id="showNewCharge">+ Nova cobrança</button></div><div id="clients"></div></section>
-<section class="card" id="newChargeSection" hidden><h2>Novo lembrete de recebimento</h2><form id="chargeForm"><label>Cliente<select id="client" required></select></label><label>Descrição<input id="desc" required maxlength="150"></label><label>Valor total em R$<input id="amount" required type="number" min=".01" step=".01"></label><label>Parcelas<select id="count"></select></label><label>Primeiro vencimento<input id="due" type="date" required></label><div id="dates"></div><button type="submit">Salvar lembrete</button></form></section>
+<section class="card" id="newChargeSection" hidden><h2>Novo lembrete de recebimento</h2><form id="chargeForm"><label>Cliente<select id="client" required></select></label><label>Descrição<input id="desc" required maxlength="150"></label><label>Valor total em R$<input id="amount" required type="text" inputmode="numeric" autocomplete="off" maxlength="24" placeholder="R$ 0,00"></label><label>Parcelas<select id="count"></select></label><label>Primeiro vencimento<input id="due" type="date" required></label><div id="dates"></div><button type="submit">Salvar lembrete</button></form></section>
 <section class="card" id="helpSection" hidden><h2>Como funcionam os lembretes?</h2><p><strong>Manual:</strong> você abre o WhatsApp com a mensagem pronta, revisa e envia. Não há tarifa por mensagem da API do WhatsApp.</p><p><strong>Automático:</strong> envio programado diretamente ao cliente, sem abrir o WhatsApp. Ainda não disponível; dependerá de integração oficial, consentimento do destinatário e plano com franquia de mensagens.</p><small>O Recebi+ não envia mensagens aos clientes sem uma ação sua nesta versão.</small></section>
 <section class="card" id="prioritySection" hidden><h2>Retornos prioritários</h2><div id="priority"></div></section>
-<section class="card" id="chargesSection" hidden><button type="button" id="backToClients">← Voltar aos clientes</button><h2 id="chargesHeading">Lembretes cadastrados</h2><div id="clientTotal" class="client-total" aria-live="polite"></div><div id="charges"></div><div class="client-management"><button type="button" id="deleteClient" class="danger-button">Excluir cliente</button><small id="deleteClientHint">Para excluir este cliente, remova primeiro todas as cobranças vinculadas.</small></div></section>
+<section class="card" id="chargesSection" hidden><button type="button" id="backToClients">← Voltar aos clientes</button><h2 id="chargesHeading">Lembretes cadastrados</h2><div class="client-total-tools"><div id="clientTotal" class="client-total" aria-live="polite"></div><button type="button" id="editClientTotal" class="edit-client-total" hidden>✎ Editar valor</button></div><div id="charges"></div><div class="client-management"><button type="button" id="deleteClient" class="danger-button">Excluir cliente</button><small id="deleteClientHint">Para excluir este cliente, remova primeiro todas as cobranças vinculadas.</small></div></section>
 </div></main>
 <script type="module">
 import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
 import {createRecebiRepository} from './recebiplus-supabase/repository.js';
+import {parseCurrencyCents,formatCurrencyInput,attachMoneyMask,MAX_CHARGE_CENTS} from './recebiplus-supabase/money.js';
+import {setupValueEditor} from './recebiplus-supabase/edit-total.js';
 const supabase=createClient('https://ytdantnjhegdvzwhgjcu.supabase.co','sb_publishable_XlfJY7DhcktWQ7im2KoQnA_Eg3Rjuew');
 const repo=createRecebiRepository(supabase),$=id=>document.getElementById(id);
 
@@ -423,7 +449,7 @@ window.visualViewport?.addEventListener('resize',updateSafeViewport,{passive:tru
 window.visualViewport?.addEventListener('scroll',updateSafeViewport,{passive:true});
 updateSafeViewport();
 // Atualização leve: consulta apenas o identificador de versão, sem cache.
-const RECEBI_BUILD='2026-10-23-email-alerts-22';
+const RECEBI_BUILD='2026-10-23-money-edit-23';
 const buildStorageKey='recebiplus:last-build';
 let lastVersionCheck=0;
 async function checkAppVersion(manual=false){
