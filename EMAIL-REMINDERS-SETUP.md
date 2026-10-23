@@ -16,16 +16,20 @@
 - Sem abrir o aplicativo. Sem misturar usuários ou revelar senha/CPF.
 - Os avisos no tablet/celular e a emissão de recibo continuam independentes.
 
-## Conectar o remetente (passo obrigatório)
+## Primeiro teste: sem domínio próprio
 
-1. Crie uma conta **gratuita** em https://resend.com .
-2. Verifique um domínio que você controla no menu **Domains** do Resend (DNS de SPF/DKIM). Escolha uma conta remetente desse domínio, por exemplo \`avisos@SEUDOMINIO.com.br\`. Não use domínios sem permissão de DNS.
-3. No **Supabase Dashboard → projeto Recebi-plus → Edge Functions → Secrets**, adicione e salve **sem colar no GitHub ou no chat**:
-   - \`RESEND_API_KEY\` = chave criada no Resend.
-   - \`RESEND_FROM_EMAIL\` = remetente do domínio verificado, ex. \`Recebi+ <avisos@SEUDOMINIO.com.br>\`.
-4. Confirme que a função \`recebiplus-due-emails\` consta como **ACTIVE** em Supabase Edge Functions. O Cron \`recebiplus_due_email_hourly\` já está agendado e o token foi gerado internamente no Supabase Vault; **não é preciso configurar token ou serviço adicional**.
-5. Abra o Recebi+, toque **Verificar atualizações**, entre na sua conta e ative **Quero receber avisos de vencimentos no e-mail desta conta**. Toque **Salvar preferência de e-mail**.
-6. O campo **Destinatário** exibe o e-mail de login; o status do serviço deve sair de “remetente ainda precisa ser configurado” para “avisos ativados”. Para testar de ponta a ponta, observe na próxima execução às 9h ou consulte o status do cron e o log de mensagens enviadas. Não gere/mande comprovantes falsos.
+1. Acesse o projeto Supabase → Edge Functions → Secrets: https://supabase.com/dashboard/project/ytdantnjhegdvzwhgjcu/settings/functions
+2. Adicione **somente** a variável `RESEND_API_KEY`, inserindo a chave completa pelo painel do Supabase. **Nunca envie o segredo para o chat ou GitHub.**
+3. O remetente temporário será `Recebi+ <onboarding@resend.dev>`. Por restrição do Resend, ele funciona exclusivamente para o próprio e-mail cadastrado na conta Resend. Não serve para terceiros nem para operação definitiva com usuários de outras contas.
+4. A função `recebiplus-due-emails` deve estar ACTIVE. O cron e o segredo de agendamento já existem no Supabase. Com a conta de destino habilitada para e-mail, ele tentará enviar o resumo a partir das 09:00, apenas se houver cobranças pendentes vencendo hoje ou em 2 dias.
+5. O app exibe 'Modo de teste habilitado' quando reconhece a chave. Esse status **não prova** entrega; confirme o envio no painel do Resend e na caixa do destinatário.
+
+## Produção: domínio verificado
+
+1. Em Resend → Domains, cadastre o domínio que você controla e confirme os registros DNS de SPF/DKIM.
+2. No Supabase → Edge Functions → Secrets, mantenha `RESEND_API_KEY` e acrescente `RESEND_FROM_EMAIL` com remetente no domínio verificado, por exemplo `Recebi+ <avisos@SEUDOMINIO.com.br>`.
+3. A função troca automaticamente do remetente de teste para o personalizado e passa a atender os demais titulares das contas que optaram pelos avisos.
+4. Não há necessidade de plano pago obrigatório nem de alteração no cadastro dos clientes.
 
 **Limite do Resend Free:** até 3.000 e-mails/mês e 100/dia (verifique os termos atuais em https://resend.com/pricing).
 
