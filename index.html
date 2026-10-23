@@ -208,7 +208,6 @@ function checkBrowserDueReminders(){
 }
 $('dismissBrowserReminders').addEventListener('click',()=>{$('browserReminderPanel').hidden=true});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkBrowserDueReminders()});
-setInterval(checkBrowserDueReminders,60000);
 // No Android, agenda lembretes locais sem compartilhar nomes, valores ou telefones.
 function syncAndroidReminders(items) {
   try {
@@ -391,6 +390,8 @@ $('refreshApp').addEventListener('click',()=>checkAppVersion(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAppVersion()});
 window.addEventListener('pageshow',()=>checkAppVersion());
 setInterval(()=>checkAppVersion(),60000);
+// Verificação local dos avisos do tablet, somente enquanto a página está aberta.
+setInterval(checkBrowserDueReminders,60000);
 setTimeout(()=>checkAppVersion(),3500);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(() => {});
 </script></body></html>
