@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#102B3C">
+<title>Recebi+ | Integração experimental com Daiz-e</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#102B3C;background:#edf4f5}
+*{box-sizing:border-box}body{margin:0;padding-bottom:36px}
+header{background:#102B3C;color:#fff;padding:22px max(16px,calc((100vw - 680px)/2));}
+header h1{margin:0;font-size:26px}header strong{color:#55E4B0}
+main{max-width:680px;margin:18px auto;padding:0 14px;display:grid;gap:14px}
+.card{background:#fff;border-radius:16px;padding:19px;box-shadow:0 4px 18px #102B3C13}
+h2{font-size:18px;margin-top:0}p{line-height:1.5}small{color:#49636e}
+.flag{display:inline-block;background:#fce8b4;color:#5d4000;border:1px solid #c9a548;padding:5px 9px;border-radius:9px;font-size:13px;font-weight:800}
+button,a.link{display:inline-flex;align-items:center;justify-content:center;border:0;background:#102B3C;color:#fff;border-radius:11px;padding:12px 15px;font-weight:700;font-size:15px;text-decoration:none;cursor:pointer;min-height:44px;margin:4px 4px 4px 0}
+button:disabled{opacity:.55;cursor:wait}button.secondary,a.secondary{background:#A8F0D0;color:#123E32}button.warn{background:#9e2835}
+input{width:100%;max-width:100%;font:inherit;padding:12px;border:1px solid #9fb7c1;border-radius:9px;margin:5px 0 12px}
+label{display:block;font-weight:700}.row{border-top:1px solid #dce5e7;padding:13px 0}
+.row strong{display:block;margin:0 0 6px}.muted{color:#4a6973;font-size:14px}
+#status:not(:empty){padding:14px;background:#e8f1f4;border-radius:12px;white-space:pre-wrap}
+#status.error{background:#fff0df;border:1px solid #d7a44b}
+[hidden]{display:none!important}
+@media(max-width:430px){header{padding:22px 16px}.card{padding:15px}button,a.link{max-width:100%;white-space:normal}}
+</style></head><body>
+<header><h1>recebi<strong>+</strong></h1><div>Integração experimental com Daiz-e</div></header>
+<main>
+<div class="card"><span class="flag">AMBIENTE DE TESTE</span>
+<h2 style="margin-top:12px">Teste reversível, sem alterar cobranças</h2>
+<p>Esta tela lê suas cobranças pagas no Recebi+ e envia apenas <b>nome, valor e descrição</b> para um rascunho do Daiz-e experimental. Não envia CPF, telefone, senha ou dados de login.</p>
+<p><b>O recibo de teste não tem validade.</b> Nenhum recibo é emitido automaticamente. Confira tudo antes de confirmar qualquer documento.</p>
+<a class="link secondary" href="./index.html">← Abrir Recebi+ original</a>
+<a class="link secondary" href="https://advandrerbernardo-maker.github.io/Daiz-e/">Abrir Daiz-e original</a>
+</div>
+<div class="card"><h2>1. Testar sem usar clientes reais</h2>
+<p class="muted">Preenche um rascunho fictício de R$ 1.500,00 no Daiz-e experimental. É a forma mais segura de começar.</p>
+<button id="demo">Testar com dados fictícios</button>
+<button class="secondary" id="discard">Descartar transferência pendente</button></div>
+<div class="card"><h2>2. Testar com uma cobrança já marcada como PAGA</h2>
+<p class="muted">Disponível apenas com a sua conta autenticada. O status PAGO é manual; confirme que o pagamento realmente ocorreu. A consulta não altera clientes nem parcelas.</p>
+<section id="auth" hidden>
+<form id="login"><label>E-mail<input id="email" type="email" autocomplete="email" required></label>
+<label>Senha<input id="password" type="password" autocomplete="current-password" required></label>
+<button type="submit">Acessar minhas cobranças</button></form></section>
+<div id="account"></div><div id="charges"></div><button class="secondary" id="refresh">Atualizar cobranças pagas</button>
+</div><div id="status" role="status" aria-live="polite"></div>
+<div class="card"><h2>Como desfazer</h2><p>Feche esta página e use os links dos aplicativos originais. Os registros experimentais ficam separados, e o Daiz-e experimental permite apagá-los sem tocar nos recibos originais.</p></div>
+</main>
+<script type="module">
+import {createClient} from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm';
+const sb=createClient('https://ytdantnjhegdvzwhgjcu.supabase.co','sb_publishable_XlfJY7DhcktWQ7im2KoQnA_Eg3Rjuew');
+const $=id=>document.getElementById(id);
+const BRIDGE_KEY='recebiplus-daize-beta-handoff-v1';
+const TARGET='https://advandrerbernardo-maker.github.io/Daiz-e/integracao-teste.html';
+const fmt=c=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(c)/100);
+const setStatus=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error)};
+let loading=false;
+function handoff(payload){
+ if(!payload||typeof payload.name!=='string'||!payload.name.trim()||payload.name.length>100||!Number.isSafeInteger(payload.cents)||payload.cents<=0||payload.cents>10000000000||typeof payload.description!=='string'||!payload.description.trim()||payload.description.length>150)throw Error('Dados inválidos para o teste.');
+ if(window.location.origin!==new URL(TARGET).origin)throw Error('Abra os dois testes no mesmo navegador e domínio GitHub Pages.');
+ const entry={kind:'recebiplus-daize-test-v1',created_at:Date.now(),nonce:crypto.randomUUID(),source:payload.source,name:payload.name,cents:payload.cents,description:payload.description,charge_id:payload.charge_id||null};
+ try{localStorage.setItem(BRIDGE_KEY,JSON.stringify(entry));}
+ catch(_){throw Error('O navegador bloqueou o armazenamento temporário. Habilite os dados do site para testar.')}
+ window.location.assign(TARGET);
+}
+$('demo').addEventListener('click',()=>{
+ try{handoff({source:'demo',name:'Cliente Demonstração',cents:150000,description:'Entrada de lote imobiliário — simulação',charge_id:null});}
+ catch(e){setStatus(e.message,true)}
+});
+$('discard').addEventListener('click',()=>{try{localStorage.removeItem(BRIDGE_KEY);setStatus('Transferência experimental descartada.')}catch(e){setStatus('Não foi possível acessar o armazenamento temporário.',true)}});
+async function userId(){
+ const {data,error}=await sb.auth.getUser();
+ if(error||!data?.user)throw Error('Sua sessão não está autenticada. Entre para consultar cobranças.');
+ return data.user.id;
+}
+async function loadPaid(){
+ if(loading)return;loading=true;$('refresh').disabled=true;
+ try{
+  const uid=await userId();
+  $('auth').hidden=true;
+  $('account').textContent='Conta conectada · listando apenas parcelas marcadas como PAGA.';
+  const [c,x]=await Promise.all([
+   sb.from('recebiplus_clients').select('id,name').eq('owner_id',uid),
+   sb.from('recebiplus_charges').select('id,client_id,description,cents,due_date,paid').eq('owner_id',uid).eq('paid',true).order('due_date',{ascending:false}).limit(100)
+  ]);
+  if(c.error)throw c.error;if(x.error)throw x.error;
+  const byId=new Map(c.data.map(z=>[z.id,z.name]));
+  $('charges').replaceChildren();
+  if(!x.data.length){$('charges').textContent='Nenhuma parcela marcada como PAGA nesta conta. Use o teste fictício acima.';return}
+  for(const ch of x.data){
+   const row=document.createElement('div');row.className='row';
+   const title=document.createElement('strong');title.textContent=(byId.get(ch.client_id)||'Cliente')+' · '+fmt(ch.cents);
+   const desc=document.createElement('div');desc.className='muted';desc.textContent=ch.description+' · Vencimento: '+String(ch.due_date).split('-').reverse().join('/');
+   const btn=document.createElement('button');btn.textContent='Preparar recibo de TESTE';btn.className='secondary';
+   btn.addEventListener('click',async()=>{
+    if(btn.disabled)return;
+    if(!window.confirm('Confirma que esta parcela está realmente recebida? O Daiz-e abrirá apenas um rascunho de TESTE, sem validade.'))return;
+    btn.disabled=true;
+    try{
+     const currentUser=await userId();
+     const check=await sb.from('recebiplus_charges').select('id,client_id,description,cents,paid').eq('owner_id',currentUser).eq('id',ch.id).eq('paid',true).single();
+     if(check.error||!check.data||!check.data.paid)throw Error('A parcela não consta mais como PAGA. Atualize a lista.');
+     const p=check.data;
+     const client=await sb.from('recebiplus_clients').select('name').eq('owner_id',currentUser).eq('id',p.client_id).single();
+     if(client.error||!client.data)throw Error('O cliente não foi encontrado nesta conta.');
+     handoff({source:'paid',name:client.data.name,cents:Number(p.cents),description:p.description,charge_id:p.id});
+    }catch(e){setStatus('Falha ao preparar rascunho: '+e.message,true)}
+    finally{btn.disabled=false}
+   });
+   row.append(title,desc,btn);$('charges').append(row);
+  }
+  setStatus('Consulta concluída. Nenhum dado foi alterado.');
+ }catch(e){
+  $('auth').hidden=false;
+  $('charges').replaceChildren();$('account').textContent='';
+  setStatus('Não foi possível carregar as cobranças: '+e.message,true);
+ }finally{loading=false;$('refresh').disabled=false}
+}
+$('refresh').addEventListener('click',loadPaid);
+$('login').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const b=event.submitter;b.disabled=true;
+ try{
+  const {error}=await sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('password').value});
+  if(error)throw error;
+  $('password').value='';
+  await loadPaid();
+ }catch(e){setStatus('Não foi possível autenticar: '+e.message,true)}
+ finally{b.disabled=false}
+});
+loadPaid();
+</script></body></html>
