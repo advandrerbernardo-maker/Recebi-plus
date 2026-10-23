@@ -63,11 +63,11 @@ test('Troca de conta oculta interface antes de consultar sessao',()=>{
  assert.match(html,/customers=\[\];charges=\[\];.*\$\('app'\)\.hidden=true;const \{data:\{user\},error\}=await supabase\.auth\.getUser\(\)/);
 });
 test('Atualizacao de dados interrompe ao detectar troca de sessao',()=>{
- assert.match(html,/loadedClients=await repo\.clients\(\);if\(epoch!==authEpoch\)return;const loadedCharges=await repo\.charges\(\);if\(epoch!==authEpoch\)return/);
+ assert.match(html,/loadedClients=await repo\.clients\(\);if\(epoch!==authEpoch\|\|requestId!==latestRefreshId\)return;const loadedCharges=await repo\.charges\(\);if\(epoch!==authEpoch\|\|requestId!==latestRefreshId\)return/);
 });
 
 test('Erro de sincronizacao nao exibe interface da conta',()=>{
- assert.match(html,/try\{await refresh\(\)\}catch\(e\)\{\$\('app'\)\.hidden=true;throw e\}/);
+ assert.match(html,/try\{await refresh\(\);showClientDirectory\(\)\}catch\(e\)\{\$\('app'\)\.hidden=true;throw e\}/);
 });
 test('Troca de conta limpa listas e indicadores anteriores',()=>{
  assert.match(html,/customers=\[\];charges=\[\];\$\('clients'\)\.replaceChildren\(\);\$\('charges'\)\.replaceChildren\(\);\$\('priority'\)\.replaceChildren\(\);\$\('stats'\)\.textContent=''/);
@@ -100,10 +100,10 @@ test('Identificador de reenvio permanece ate confirmacao',()=>{
 
 test('Diretriz comercial: aplicativo e apenas organizador de lembretes',()=>{
  assert.match(html,/não recebe, movimenta ou confirma pagamentos/);
- assert.match(html,/status “Resolvido” é informado manualmente/);
- assert.match(html,/Marcar como resolvido/);
+ assert.match(html,/status “PAGO” é informado manualmente/);
+ assert.match(html,/Marcar como PAGO/);
  assert.match(html,/Lembretes cadastrados/);
- assert.doesNotMatch(html,/Marcar pago|Desfazer pagamento/);
+ assert.doesNotMatch(html,/pagamento confirmado automaticamente|recebimento confirmado pelo banco/);
 });
 
 test('Lembretes vencidos e do dia sao destacados sem confundir resolvidos',()=>{
@@ -172,7 +172,7 @@ test('WhatsApp manual exige toque e usa link wa.me com mensagem codificada',()=>
 test('Versao candidata informa limites de uso e nao se apresenta como processadora de pagamentos',()=>{
  assert.match(html,/Sobre o Recebi\+/);
  assert.match(html,/não recebe, movimenta ou confirma pagamentos/);
- assert.match(html,/status “Resolvido” é informado manualmente pelo usuário/);
+ assert.match(html,/status “PAGO” é informado manualmente pelo usuário/);
  assert.doesNotMatch(html,/Versão de testes/);
 });
 
@@ -193,7 +193,7 @@ test('Falha offline mostra aviso visivel e nao confirma operacao',async()=>{
  msg('Erro: Failed to fetch');
  assert.equal(elements.operationAlert.hidden,false);
  assert.equal(elements.retryConnection.hidden,false);
- assert.match(elements.operationAlertText.textContent,/alteração não foi confirmada/);
+ assert.match(elements.operationAlertText.textContent,/Confira os dados após restabelecer a internet/);
  msg('Dados sincronizados com Supabase');
  assert.equal(elements.operationAlert.hidden,true);
 });
@@ -227,7 +227,7 @@ test('Alerta nativo aparece mesmo quando aviso de pagina nao esta visivel',()=>{
 test('Falha de rede apresenta aviso junto ao lembrete e tempo limite',()=>{
  assert.match(html,/function showInlineError\(actions,message\)/);
  assert.match(html,/note\.setAttribute\('role','alert'\)/);
- assert.match(html,/function withConnectionDeadline\(promise,ms=12000\)/);
+ assert.match(html,/function withConnectionDeadline\(promise,ms=30000\)/);
  assert.match(html,/withConnectionDeadline\(repo\.setPaid/);
  assert.match(html,/withConnectionDeadline\(repo\.addCharges/);
  assert.match(html,/Não foi possível confirmar a alteração/);
@@ -261,4 +261,27 @@ test('Gravacao parcial interrompida e reenvio recuperam exatamente tres parcelas
  assert.equal(rows.reduce((total,row)=>total+row.cents,0),30000);
  await repository.addCharges(entries);
  assert.equal(rows.length,3,'Reenvio repetido nao duplica');
+});
+
+test('Consultas obsoletas sao descartadas para preservar a conta atual',()=>{
+ assert.match(html,/let latestRefreshId=0/);
+ assert.match(html,/requestId=\+\+latestRefreshId/);
+ assert.match(html,/epoch!==authEpoch\|\|requestId!==latestRefreshId/);
+ assert.match(html,/const epoch=\+\+authEpoch;latestRefreshId\+\+/);
+});
+test('Novas senhas exigem formato reforcado sem bloquear login existente',()=>{
+ assert.match(html,/const validNewPassword=password=>/);
+ assert.match(html,/password.length>=12/);
+ assert.match(html,/\$\('signup'\).*?validNewPassword/);
+ assert.match(html,/\$\('recoveryForm'\).*?validNewPassword/);
+ assert.doesNotMatch(html,/\$\('login'\)[^\n]*validNewPassword/);
+});
+test('Autodiagnostico nao grava dados no Supabase',()=>{
+ const start=html.indexOf('async function runRecebiDiagnostics()');
+ const end=html.indexOf("\$('runDiagnostics').addEventListener".replace('\\$','$'),start);
+ assert.ok(start>=0 && end>start);
+ const diagnostic=html.slice(start,end);
+ assert.match(diagnostic,/repo.clients\(\),repo.charges\(\)/);
+ assert.match(diagnostic,/app-version\.json/);
+ assert.doesNotMatch(diagnostic,/repo\.(addClient|addCharge|addCharges|setPaid|changeDue|deleteCharge|deleteClient)\(/);
 });
